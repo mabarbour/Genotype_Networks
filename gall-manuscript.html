@@ -1,0 +1,199 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<!-- saved from url=(0014)about:internet -->
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+
+<title>Plant genetic variation shapes the structure and function of herbivore-parasitoid networks (a work in progress)</title>
+
+<base target="_blank"/>
+
+<style type="text/css">
+body, td {
+   font-family: sans-serif;
+   background-color: white;
+   font-size: 12px;
+   margin: 8px;
+}
+
+tt, code, pre {
+   font-family: 'DejaVu Sans Mono', 'Droid Sans Mono', 'Lucida Console', Consolas, Monaco, monospace;
+}
+
+h1 { 
+   font-size:2.2em; 
+}
+
+h2 { 
+   font-size:1.8em; 
+}
+
+h3 { 
+   font-size:1.4em; 
+}
+
+h4 { 
+   font-size:1.0em; 
+}
+
+h5 { 
+   font-size:0.9em; 
+}
+
+h6 { 
+   font-size:0.8em; 
+}
+
+a:visited {
+   color: rgb(50%, 0%, 50%);
+}
+
+pre {	
+   margin-top: 0;
+   max-width: 95%;
+   border: 1px solid #ccc;
+}
+
+pre code {
+   display: block; padding: 0.5em;
+}
+
+code.r {
+   background-color: #F8F8F8;
+}
+
+table, td, th {
+  border: none;
+}
+
+blockquote {
+   color:#666666;
+   margin:0;
+   padding-left: 1em;
+   border-left: 0.5em #EEE solid;
+}
+
+hr {
+   height: 0px;
+   border-bottom: none;
+   border-top-width: thin;
+   border-top-style: dotted;
+   border-top-color: #999999;
+}
+
+@media print {
+   * { 
+      background: transparent !important; 
+      color: black !important; 
+      filter:none !important; 
+      -ms-filter: none !important; 
+   }
+
+   body { 
+      font-size:12pt; 
+      max-width:100%; 
+   }
+       
+   a, a:visited { 
+      text-decoration: underline; 
+   }
+
+   hr { 
+      visibility: hidden;
+      page-break-before: always;
+   }
+
+   pre, blockquote { 
+      padding-right: 1em; 
+      page-break-inside: avoid; 
+   }
+
+   tr, img { 
+      page-break-inside: avoid; 
+   }
+
+   img { 
+      max-width: 100% !important; 
+   }
+
+   @page :left { 
+      margin: 15mm 20mm 15mm 10mm; 
+   }
+     
+   @page :right { 
+      margin: 15mm 10mm 15mm 20mm; 
+   }
+
+   p, h2, h3 { 
+      orphans: 3; widows: 3; 
+   }
+
+   h2, h3 { 
+      page-break-after: avoid; 
+   }
+}
+
+</style>
+
+
+
+
+
+</head>
+
+<body>
+<h1>Plant genetic variation shapes the structure and function of herbivore-parasitoid networks (a work in progress)</h1>
+
+<p>Matthew A. Barbour, Jordi Bascompte, and Greg W. Crutsinger</p>
+
+<h3>Objective</h3>
+
+<p>This paper examines how plant genetic variation influences herbivore-parasitoid interaction networks and how these networks shape selection pressures acting on herbivores.</p>
+
+<h3>Research Questions</h3>
+
+<p><strong>(1)</strong> How does plant genotype influence gall-parasitoid interaction networks?</p>
+
+<p><strong>(2)</strong> How do different interaction networks influence the form of natural selection acting on herbivore traits?</p>
+
+<p><em>Possible (3)</em> How does the loss of plant genotypes influence gall-parasitoid interaction networks?</p>
+
+<h3>Methods</h3>
+
+<h4>Q1</h4>
+
+<p>Build a meta-web of herbivore-parasitoid interactions by pooling across all genotypes (try a both qualitative and quantitative version, hopefully both will yield the same results)</p>
+
+<p>Run an appropriate modularity algorithm to identify modules on the meta-web.</p>
+
+<p><strong><em>Figure out how to quantify the frequency of representation of the different modules.</em></strong></p>
+
+<p>Run a chi-square test based on the frequencies of each module occurring on each genotype to see whether there is an association.</p>
+
+<h3>Q2</h3>
+
+<p>Build a meta-web of herbivore-parasitoid interactions by pooling across all genotypes (try both qualitative and quantitative version, hopefully both will yield the same results)</p>
+
+<p>Evaluate the structure of the meta-web (nested or modular or both).</p>
+
+<p>Compute the appropriate network measure for each replicate of each genotype and see whether I can detect any correlations between network structure and genetic distance or traits.</p>
+
+<p>Could also use the method proposed in Poisot 2012 (Dissimilarity of Interaction Networks), but it doesn&#39;t examine how network structure changes (this may or may not be important, depending on whether I see any noticeable changes in my graphs of the different networks)</p>
+
+<p>Could also see how the functional role of species (Guimera and Amaral Functional Cartography paper in Nature) change across genotypes.  Test this using a chi-square analysis based on genotypes and the seven different functional roles (I&#39;m thinking now I won&#39;t see a big difference&hellip;)</p>
+
+<p><strong><em>What I think may be a promising method</em></strong>: Look for dissimilarity in module participation, by creating a matrix of all possible interactions (e.g H1,P1 H1,P2 H2,P1 etc.) for a particular module on a tree (or genotype), then calculate a bray-curtis dissimilarity within modules across the trees/genotypes.  Then see if this is associated with any particular gall and/or plant traits.<strong>this is a more likely area where we will see gall trait variation influencing the network</strong></p>
+
+<p><strong><em>Conversation with Rudolf</em></strong>: Look for mantel correlation between dissimilarity in herbivore traits (e.g. gall size, multilocularity, etc.) and dissimilarity in network topology (e.g. see Bersier et al. 2002, for quantitative versions of network measures).  And see whether this correlation varies across genotypes.  Or simply look to see whether the quantitative versions of these network metrics vary across genotypes (similar to Tylianakis et al. 2007, but with different genotypes instead of habitats)</p>
+
+<h3>Q3</h3>
+
+<p>Option 1: Use partial mantel tests and path analysis to see how genetic distance and trait dissimilarity influence dissimilarity in module frequency (either all modules combined, or modules individually).  Consider at first using all plant traits and then looking at individual traits.</p>
+
+<p>Also, look for patterns between genotypes and herbivore traits, as well as herbivore traits and network topology.  Could use a mantel test for genetic distance and herbivore trait dissimilarity and measures of network topology.</p>
+
+</body>
+
+</html>
+
