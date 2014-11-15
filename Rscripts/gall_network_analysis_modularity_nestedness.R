@@ -16,52 +16,6 @@ rownames(genotype_gall_parasitoid_network) <- genotype_gall_parasitoid_network$X
 genotype_gall_parasitoid_network <- select(genotype_gall_parasitoid_network, -X)
 
 
-###### Plots of Contributions to network structure
-
-### Genotypes
-geno.contrib.df <- data.frame(contrib = rowSums(genotype_gall_parasitoid_network),
-                              percent.contrib = rowSums(genotype_gall_parasitoid_network)/sum(rowSums(genotype_gall_parasitoid_network))*100,
-                              genotypes = rownames(genotype_gall_parasitoid_network))
-geno.contrib.df <- mutate(geno.contrib.df, geno.ord = reorder(genotypes, percent.contrib))
-mean.percent.contrib <- with(geno.contrib.df, mean(percent.contrib))
-
-hist(log(geno.contrib.df$contrib)) # log-normal distribution?
-
-ggplot(geno.contrib.df, aes(x = geno.ord, y = percent.contrib)) +
-  geom_bar(stat = "identity") +
-  xlab("Genotype") +
-  ylab("Percent Contribution to Network Structure") +
-  coord_flip() +
-  theme_classic() +
-  geom_hline(yintercept = mean.percent.contrib, linetype = "dashed")
-
-# Gall-parasitoid interactions
-gall.ptoid.contrib.df <- data.frame(contrib = colSums(genotype_gall_parasitoid_network),
-                              percent.contrib = colSums(genotype_gall_parasitoid_network)/sum(colSums(genotype_gall_parasitoid_network))*100,
-                              interactions = colnames(genotype_gall_parasitoid_network))
-gall.ptoid.contrib.df <- mutate(gall.ptoid.contrib.df, interaction.ord = reorder(interactions, percent.contrib))
-mean.gp.percent.contrib <- with(gall.ptoid.contrib.df, mean(percent.contrib))
-
-hist(log(gall.ptoid.contrib.df$contrib)) # log-normal distribution?
-
-ggplot(gall.ptoid.contrib.df, aes(x = interaction.ord, y = percent.contrib)) +
-  geom_bar(stat = "identity") +
-  xlab("Interactions") +
-  ylab("Percent Contribution to Network Structure") +
-  coord_flip() +
-  theme_classic() +
-  geom_hline(yintercept = mean.gp.percent.contrib, linetype = "dashed")
-
-# betadiversity of genotype-gall-parasitoid network
-beta.div(genotype_gall_parasitoid_network, method = c("hellinger")) # vLG_Platy, vLG_Mesopol, and rG_Tory contribute the most to beta-diversity.
-
-geno.order <- arrange(genotypes, Vertex)
-
-adonis(genotype_gall_parasitoid_network ~ factor(geno.order$Module.ID), method = "horn") # looks the same as the results 
-anova(betadisper(vegdist(genotype_gall_parasitoid_network, method = "horn"), geno.order$Module.ID))
-
-plot(capscale(genotype_gall_parasitoid_network, method = "horn"))
-
 # Notes for Null Model Analysis:
 # r2dtable = Patefield algorithm (preserves marginal totals of network)
 # shuffle.web = preserves connectance of observed web
