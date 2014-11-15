@@ -2,721 +2,850 @@
 
 #### upload necessary packages
 
+source('~/Documents/Genotype_Willow_Community/datasets_&_Rscripts/functions_ms_willow_community.R') # used for testing for random effects of plant genotype on gall densities
+
+# function for evaluating normality of random effects assumption.
+ggQQ_ranef <- function(ranef) # argument: vector of random effects
+{
+  y <- quantile(ranef, c(0.25, 0.75))
+  x <- qnorm(c(0.25, 0.75))
+  slope <- diff(y)/diff(x)
+  int <- y[1L] - slope * x[1L]
+  p <- ggplot(data.frame(ranef = ranef), aes(sample=ranef)) +
+    stat_qq(alpha = 0.5) +
+    geom_abline(slope = slope, intercept = int, color="blue")
+  
+  return(p)
+} 
+
+
+# analysis
+#library(mvabund)
+#library(vegan)
+library(visreg)
+#library(bipartite)
+#library(pscl)
+library(car)
+library(lme4)
+library(MASS)
+
 # data manipulation. order of libraries is important. always load dplyr last.
 library(reshape2)
 library(reshape)
+library(plyr)
 library(dplyr)
 
 # plotting
 library(ggplot2)
 
-# analysis
-library(mvabund)
-library(vegan)
+##### upload data
 
-# upload molten gall network data
-gall_net_melt <- read.csv("~/Documents/Genotype_Networks/data/gall_network_data.csv")
-gall_net_melt <- tbl_df(gall_net_melt)
-gall_net_melt <- filter(gall_net_melt, plant.position != 9999) # removed unknown plant.position
+# interaction data
+tree_level_interaxn_all_plants <- read.csv("~/Documents/Genotype_Networks/data/tree_level_interaxn_all_plants.csv")
 
-### NEED TO ADD PLANTS WITH NO GALLS
+table(tree_level_interaxn_all_plants$Genotype) # sample sizes
+sum(table(tree_level_interaxn_all_plants$Genotype))
 
-##### Does the proportion of parasitized vLG galls vary among genotypes?
+# plant trait data
+tree_level_traits <- read.csv("~/Documents/Genotype_Networks/data/plant.trait.galls.2011.tree.df.csv")
+tree_level_traits <- select(tree_level_traits, -X, -Genotype)
 
-### contingency table analyses for each gall species separately. 
+# join trait and interaction data
+galls_traits <- left_join(tree_level_interaxn_all_plants, tree_level_traits, by = "plant.position")
+galls_traits <- select(galls_traits, -Nitrogen, -Carbon, - C_N_ratio)
+galls_traits <- filter(galls_traits, salicortin__A270nm >= 0 & Total_Area > 0 & Trichome.No. >= 0 & specific_leaf_area > 0) # remove NAs
 
-# Iteomyia salicisverruca
-vLG_geno_parasitism <- gall_net_melt %>%
-  dcast(Genotype ~ gall.sp + gall_contents, sum) %>%
-  select(Genotype, starts_with("vLG")) %>%
-  mutate(vLG_ptoid_attack = vLG_Eulo.fem + vLG_Eulo.mal + vLG_Mesopol + vLG_Mymarid + vLG_Platy + vLG_Ptero.2 + vLG_Tory.fem + vLG_Tory.mal, vLG_prop_ptoid_attack = vLG_ptoid_attack/(vLG_vLG.pupa + vLG_ptoid_attack)) %>% # omitting exit hole because of potential overlap with other ectoparasitoids. Need to probably resolve this by not using "unk" gall.id
-  select(Genotype, vLG_ptoid_attack, vLG_vLG.pupa, vLG_prop_ptoid_attack)
+# transform some of the plant traits for use in regression.
+galls_traits <- transform(galls_traits, 
+                                            log_size = log(Total_Area), 
+                                            density_resid = residuals(lm(Density ~ log(Total_Area), galls_traits)),
+height_resid = residuals(lm(Height ~ log(Total_Area), galls_traits)), 
+log_trich = log(Trichome.No. + 1), 
+sla_resid = residuals(lm(specific_leaf_area ~ water_content, galls_traits)))
 
-vLG_for_chi <- vLG_geno_parasitism %>%
-  filter(vLG_ptoid_attack > 0 & vLG_vLG.pupa > 0) %>% # remove all observations with zeros in either column
-  select(vLG_ptoid_attack, vLG_vLG.pupa)
 
-chisq.test(vLG_for_chi)
-chisq.test(vLG_for_chi, simulate.p.value = TRUE, B = 10000) # same results as above
+####### Random effect models of variation in gall densities among willow genotypes. Consider using simulate, confint and boot in lme4 to get confidence intervals and everything for the parameters I'm interested in.
 
-# Rabdophaga salicisbrassicoides
-rG_geno_parasitism <- gall_net_melt %>%
-  dcast(Genotype ~ gall.sp + gall_contents, sum) %>%
-  select(Genotype, starts_with("rG")) %>%
-  mutate(rG_ptoid_attack = rG_diff.or.larv + rG_Eulo.fem + rG_Eulo.mal + rG_Lestodip + rG_Mesopol + rG_Platy + rG_Tory.fem + rG_Tory.mal + rG_unk.ptoid, rG_prop_ptoid_attack = rG_ptoid_attack/(rG_rG.larv + rG_ptoid_attack)) %>% # omitting exit hole because of potential overlap with other ectoparasitoids. Need to probably resolve this by not using "unk" gall.id
-  select(Genotype, rG_ptoid_attack, rG_rG.larv, rG_prop_ptoid_attack)
-
-rG_for_chi <- rG_geno_parasitism %>%
-  filter(rG_ptoid_attack > 0 & rG_rG.larv > 0) %>% # remove all observations with zeros in either column
-  select(rG_ptoid_attack, rG_rG.larv)
-
-chisq.test(rG_for_chi) # qualitatively the same even if I only remove observations with > 0 in either ptoid attack or rG.larva
-chisq.test(rG_for_chi, simulate.p.value = TRUE, B = 10000)
-
-# Rabdophaga salicisbattatus
-SG_geno_parasitism <- gall_net_melt %>%
-  dcast(Genotype ~ gall.sp + gall_contents, sum) %>%
-  select(Genotype, starts_with("SG")) %>%
-  mutate(SG_prop_ptoid_attack = SG_Platy/(SG_Platy + SG_SG.larv)) %>% # omitting exit hole because of potential overlap with other ectoparasitoids. Need to probably resolve this by not using "unk" gall.id. SG_Platy was the only species reared from SG
-  select(Genotype, SG_Platy, SG_SG.larv, SG_prop_ptoid_attack)
-
-SG_for_chi <- SG_geno_parasitism %>%
-  filter(SG_Platy > 0 & SG_SG.larv > 0) %>% # unable to run the anlaysis unless I permit there to be zeros in at least one column
-  select(SG_Platy, SG_SG.larv)
-
-chisq.test(SG_for_chi) # I don't know how much I trust this...appears to be driven by one data point.
-chisq.test(SG_for_chi, simulate.p.value = TRUE, B = 10000)
-
-# Cecidomyiidae sp. A (aSG)
-aSG_geno_parasitism <- gall_net_melt %>%
-  dcast(Genotype ~ gall.sp + gall_contents, sum) %>%
-  select(Genotype, starts_with("aSG")) %>%
-  mutate(aSG_ptoid_attack = aSG_Tory.fem + aSG_Tory.mal, aSG_prop_ptoid_attack = aSG_ptoid_attack/(aSG_ptoid_attack + aSG_aSG.larv)) %>% 
-  select(Genotype, aSG_ptoid_attack, aSG_aSG.larv, aSG_prop_ptoid_attack)
-
-aSG_for_chi <- aSG_geno_parasitism %>%
-  filter(aSG_ptoid_attack > 0 & aSG_aSG.larv > 0) %>% # 
-  select(aSG_ptoid_attack, aSG_aSG.larv)
-
-chisq.test(aSG_for_chi) # qualitatively the same results no matter how I decide to retain the data.
-chisq.test(aSG_for_chi, simulate.p.value = TRUE, B = 10000)
-
-# Pontania californica
-rsLG_geno_parasitism <- gall_net_melt %>%
-  dcast(Genotype ~ gall.sp + gall_contents, sum) %>%
-  select(Genotype, starts_with("rsLG")) %>%
-  mutate(rsLG_surv = rsLG_Pont.ad + rsLG_Pont.prep, rsLG_ptoid_attack = rsLG_Eury.fem + rsLG_Eury.mal + rsLG_Lathro.fem + rsLG_Lathro.mal, rsLG_prop_ptoid_attack = rsLG_ptoid_attack/(rsLG_surv + rsLG_ptoid_attack)) %>%
-  select(rsLG_ptoid_attack, rsLG_surv, rsLG_prop_ptoid_attack)
-
-rsLG_for_chi <- rsLG_geno_parasitism %>%
-  filter(rsLG_ptoid_attack > 0 & rsLG_surv > 0) %>% # 
-  select(rsLG_ptoid_attack, rsLG_surv)
-
-chisq.test(rsLG_for_chi) # qualitatively the same results no matter how I decide to retain the data.
-chisq.test(rsLG_for_chi, simulate.p.value = TRUE, B = 10000)
-
-##### How dissimilar are gall-parasitoid interaction networks among genotypes?
-
-### Genotype-level networks
-levels(gall_net_melt$gall_contents)
-
-genotype_net_filter <- gall_net_melt %>%
-  filter(gall_contents %in% c("Eulo.fem", "Eulo.mal", "Eury.fem", "Eury.mal", "Lathro.fem", "Lathro.mal", "Lestodip", "Mesopol", "Mymarid", "Platy", "Ptero.2", "Tory.fem", "Tory.mal"))
-
-genotype_net_add <- mutate(genotype_net_filter, gall_contents_collapse = revalue(gall_contents, c("Eulo.fem" = "Eulo", "Eulo.mal" = "Eulo", "Eury.fem" = "Eury", "Eury.mal" = "Eury", "Lathro.fem" = "Lathro", "Lathro.mal" = "Lathro", "Ptero.2" = "Mesopol", "Tory.fem" = "Tory", "Tory.mal" = "Tory") ))
-
-total_net <- cast(genotype_net_add, gall.sp ~ gall_contents_collapse, sum)
-total_net_gephi <- melt(total_net)
-total_net_gephi <- select(total_net_gephi, Source = gall.sp, Target = gall_contents_collapse, Weight = value)
-write.csv(total_net_gephi, "~/Documents/Genotype_Networks/data/total_gall_parasitoid_network.csv")
-
-genotype_net <- cast(genotype_net_add, gall.sp ~ gall_contents_collapse | Genotype, sum)
-
-genotype_net <- genotype_net[-c(2,5,7,8,15,16,20,21)] # betalink doesn't like it if you only have 1 column. Need to figure this out...
-
-# this loop prepares each network for analysis in betalink
-for(i in 1:length(genotype_net)) {
-  rownames(genotype_net[[i]]) <- as.character(genotype_net[[i]]$gall.sp) # change row names to gall specie names
-  genotype_net[[i]] <- as.matrix(select(genotype_net[[i]], -gall.sp)) # remove gall.sp as a column of data. Turning this into a matrix is important for easier analysis with betalink package
-}
-
-genotype_net_qualitative <- list()
-for(i in 1:length(genotype_net)) {
-  genotype_net_qualitative[[i]] <- genotype_net[[i]]
-  genotype_net_qualitative[[i]][genotype_net_qualitative[[i]] > 0] <- 1
-}
-names(genotype_net_qualitative) <- names(genotype_net)
-
-library(betalink)
-betalink_genotype_net_qualitative <- betalink.dist(genotype_net_qualitative, bf=B01) # tried using Sorenson's index (B11), but it was giving very wonky results. Also giving wonky results when I try to use Paul Rabie's qualitative code...
-
-mean(betalink_genotype_net_qualitative$WN) # average dissimilarity is 49% among genotypes
-mean(betalink_genotype_net_qualitative$OS)
-mean(betalink_genotype_net_qualitative$S)
-mean(betalink_genotype_net_qualitative$ST)
-mean(betalink_genotype_net_qualitative$contrib) # 71% of the dissimilarity is due to species turnover.
-
-betalink.plot(as.matrix(genotype_net_qualitative[["S"]]), as.matrix(genotype_net_qualitative[["I"]]))
-
-betalink_genotype_net_quantitative <- betalink.dist(genotype_net, bf = "bray")
-
-w1 = genotype_net[["S"]]
-w2 = genotype_net[["I"]]
-
-mean(betalink_genotype_net_quantitative$WN) # 68% dissimilarity in interaction networks
-mean(betalink_genotype_net_quantitative$OS)
-mean(betalink_genotype_net_quantitative$S_all.taxa)
-mean(betalink_genotype_net_quantitative$S_insects)
-mean(betalink_genotype_net_quantitative$S_plants)
-mean(betalink_genotype_net_quantitative$ST)
-mean(betalink_genotype_net_quantitative$contrib) # species turnover contributes less to dissimilarity in interaction networks than qualitative data (40%)
-
-
-
-
-
-
-
-# vLG proportion analysis
-vLG_parasitism <- gall_net_melt %>%
-  dcast(Gender + Genotype + plant.position ~ gall.sp + gall_contents, sum) %>%
-  mutate(vLG_ptoid_attack = vLG_Eulo.fem + vLG_Eulo.mal + vLG_exit.hole + vLG_Mesopol + vLG_Mymarid + vLG_Platy + vLG_Ptero.2 + vLG_Tory.fem + vLG_Tory.mal) %>%
-  select(Gender, Genotype, plant.position, vLG_vLG.pupa, vLG_ptoid_attack) %>%
-  filter(vLG_vLG.pupa > 0 | vLG_ptoid_attack > 0)
-
-table(vLG_parasitism$Genotype)
-
-vLG_parasitism_sub2 = filter(vLG_parasitism, Genotype %in% c("*","B","D","E","F","H","I","J","K","L","O","S","V","X","Y","Z") )
-
-vLG_parasitism_glm <- glm(cbind(vLG_ptoid_attack, vLG_vLG.pupa) ~ Genotype, data = vLG_parasitism, family = "binomial")
-summary(vLG_parasitism_glm)
-anova(vLG_parasitism_glm, test = "Chi")
-plot(vLG_parasitism_glm) # need to see what is going on here
-
-
-# create a tree level data
-tree_gall_net <- dcast(gall_net_melt, Gender + Genotype + plant.position ~ gall.sp + gall_contents, sum) 
-colSums(select(tree_gall_net, -c(Gender, Genotype, plant.position))) # take a look the abundance of these different "interactions"
-
-focal = select(tree_gall_net, -c(Gender, Genotype, plant.position))
-adonis(focal ~ Genotype, data = tree_gall_net, method = "bray")
-
-test = capscale(focal ~ Genotype, data = tree_gall_net, distance = "bray")
-plot(test, display = "sp")
-
-focal_mvabund <- mvabund(focal)
-test2 <- manylm(focal_mvabund ~ Genotype, data = tree_gall_net) 
-anova(test2, test = "F", p.uni = "unadjusted")
-
-plot(vLG_Platy ~ Genotype, tree_gall_net)
-plot(vLG_Tory.fem ~ Genotype, tree_gall_net)
-
-#### EVERYTHING BELOW THIS IS OLD BUT MAY BE USEFUL
-
-#library(reshape2)
-
-# plotting
-#library(ggplot2)
-#library(car) # for scatterplot matrices
-
-# network analysis
-#library(bipartite)
-
-### source in required functions
-#source('~/Documents/Genotype_Networks/data/fxns_networks.R')
-
-### Upload necessary data
-
-# upload plant position info
-plant.position.info <- read.csv("~/Documents/Genotype_Willow_Community/datasets_&_Rscripts/Willow Garden Positions.csv")
-plant.position_df <- tbl_df(plant.position.info) %>%
-  mutate(plant.position = Plant.Position) %>%
-  select(plant.position, Genotype, Gender)
-
-# upload complete network data
-gall_network_data <- read.csv("~/Documents/Genotype_Networks/data/gall_network_data.csv")
-gall_network_df <- tbl_df(gall_network_data)
-
-# Shoot count estimates as well as plant positions where zero galls were collected
-shoot.countEst <- read.csv("~/Documents/Genotype_Networks/data/survey_2_stem_diams_shootEsts.csv")
-shoot.count_df <- tbl_df(shoot.countEst)
-shoot.count_df <- shoot.count_df %>%
-  mutate(plant.position = Plant.Position) %>%
-  select(plant.position, Galls.found, shootEst.all, shootEst.no18)
-
-### Create dataset for gall-parasitoid interactions that includes intraspecific variation within the parasitoids
-tree_gallnet_intraptoid <- gall_network_df %>%
-  select(plant.position, gall.sp, Eury.fem:Eulo.fem, Lestodip:Lathro.mal, Eulo.mal, Mymarid, Genotype, Gender) %>%
-  melt(id.vars = c("plant.position","Genotype","Gender","gall.sp"), variable_name = "gall_contents") %>%
-  dcast(Gender + Genotype + plant.position ~ gall.sp + gall_contents, sum) %>%
-  select(Gender, Genotype, plant.position, aSG_Tory.mal, aSG_Tory.fem, rG_Platy, rG_Tory.mal, rG_Tory.fem, rG_Mesopol, rG_Eulo.fem, rG_Lestodip, rG_Eulo.mal, rsLG_Eury.fem, rsLG_Eury.mal, rsLG_Lathro.fem, rsLG_Lathro.mal, SG_Platy, vLG_Platy, vLG_Tory.mal, vLG_Tory.fem, vLG_Mesopol, vLG_Ptero.2, vLG_Eulo.fem, vLG_Eulo.mal, vLG_Mymarid) # only retain gall-ptoid interactions that had at least 1 observation 
-
-#tree_gallnet_intraptoid <- inner_join(tree_gallnet_intraptoid, shoot.count_df) # retains all data from shoot.count_df which contains relevant information for when no galls were collected from plants. NEED TO DECIDE THE TYPE OF JOIN REQUIRED.
-not_in_shootcount <- anti_join(tree_gallnet_intraptoid, shoot.count_df) 
-not_in_gallnet <- anti_join(shoot.count_df, tree_gallnet_intraptoid)
-
-with(tree_gallnet_intraptoid, cbind.data.frame(plant.position, Galls.found, vLG_Platy, shootEst.all)) # 0 galls found and NA make sense. But other categories do not, so I need to figure out what is going on here.
-
-library("mvabund")
-test = filter(tree_gallnet_intraptoid, shootEst.all > 0)
-test.offset = matrix(rep(test$shootEst.all, 22), ncol = 22)
-gallnet_mvabund = mvabund(select(test, aSG_Tory.mal:vLG_Mymarid))
-gallnet_manylm = manylm(gallnet_mvabund ~ Genotype, data = test, offset = test.offset)
-gallnet_anova.manylm = anova.manylm(gallnet_manylm, p.uni = "adjusted")
-summary.manylm(gallnet_manylm, p.uni = "adjusted")
-
-#library("MASS") # note that this masks "select" from dplyr
-t1 = glm.nb(vLG_Platy ~ Genotype + offset(log(shootEst.all)), test, control = glm.control(maxit = 100))
-t2 = glm.nb(vLG_Platy ~ offset(log(shootEst.all)), test, control = glm.control(maxit = 100))
-anova(t2,t1)
-plot(vLG_Platy ~ Genotype, test) # need to figure out how to plot with offset.
-
-### Note that including the offset changes the interpretation to "density". Including it as a covariate allows it to change at a slower or faster rate. I think density is the original context in which I was doing this. However, the AIC is MUCH lower if I include density as a covariate. had to up the iterations to get rid of the "alternation" error.
-
-
-### Create gall-parasitoid network at the Genotype level. 
-geno_gallnet <- gall_network_df %>%
-  select(plant.position, gall.sp, Eury.fem:Eulo.fem, Lestodip:Lathro.mal, Eulo.mal, Mymarid, Genotype, Gender) %>%
-  melt(id.vars = c("plant.position","Genotype","Gender","gall.sp"), variable_name = "gall_contents") %>%
-  dcast(Gender + Genotype ~ gall.sp + gall_contents, sum) %>%
-  select(Gender, Genotype, aSG_Tory.mal, aSG_Tory.fem, rG_Platy, rG_Tory.mal, rG_Tory.fem, rG_Mesopol, rG_Eulo.fem, rG_Lestodip, rG_Eulo.mal, rsLG_Eury.fem, rsLG_Eury.mal, rsLG_Lathro.fem, rsLG_Lathro.mal, SG_Platy, vLG_Platy, vLG_Tory.mal, vLG_Tory.fem, vLG_Mesopol, vLG_Ptero.2, vLG_Eulo.fem, vLG_Eulo.mal, vLG_Mymarid) %>% # only retain gall-ptoid interactions that had at least 1 observation
-  mutate(aSG_Tory = aSG_Tory.mal + aSG_Tory.fem, rG_Tory = rG_Tory.mal + rG_Tory.fem, rG_Eulo = rG_Eulo.fem + rG_Eulo.mal, rsLG_Eury = rsLG_Eury.fem + rsLG_Eury.mal, rsLG_Lathro = rsLG_Lathro.fem + rsLG_Lathro.mal, vLG_Tory = vLG_Tory.fem + vLG_Tory.mal, vLG_Mesopol = vLG_Mesopol + vLG_Ptero.2, vLG_Eulo = vLG_Eulo.fem + vLG_Eulo.mal) %>%
-  select(Gender, Genotype, aSG_Tory, rG_Platy, rG_Tory, rG_Mesopol, rG_Eulo, rG_Lestodip, rsLG_Eury, rsLG_Lathro, SG_Platy, vLG_Platy, vLG_Tory, vLG_Mesopol, vLG_Eulo, vLG_Mymarid) 
-
-geno_shootcount = left_join(shoot.count_df, plant.position_df) %>%
-  group_by(Genotype) %>%
-  summarise(geno_shootEst.all = sum(shootEst.all, na.rm=TRUE), geno_n = n()) # 10 reps of genotype Z? NEED TO MAKE SURE THIS SHOOT COUNT CORRESPONDS EXACTLY WITH THE SAMPLING FOR THE GALLING INSECTS.
-
-geno_gallnet_shootcount = left_join(geno_gallnet, geno_shootcount)
-geno_gallnet_density = round((select(geno_gallnet_shootcount, aSG_Tory:vLG_Mymarid)/geno_gallnet_shootcount$geno_shootEst.all)*1000) # number of interactions per 1000 shoots sampled, which was close to the minimum number sampled for each genotype. I rounded the numbers to the nearest whole digit for modularity analysis. 
-rownames(geno_gallnet_density) <- geno_gallnet_shootcount$Genotype
-
-library("bipartite")
-visweb(geno_gallnet_density)
-visweb(geno_gallnet_density, type = "diagonal")
-
-## modularity and nestedness analysis. still need to make sure my null models are appropriate and that I have accounted for shoot densities appropriately.
-
-# create a list with 100 of the same gall networks data frames to calculate and identify the maximum modularity value.
-geno_gallnet_samelist <- list()
-for(i in 1:100){
-  geno_gallnet_samelist[[i]] <- geno_gallnet_density
-}
-
-### Still need to try this code after I account for shoot estimates. It will probably take a very long time, which is why I have coded it out. Identify iteration generating the maximum modularity value "Q". Note that any adjustments here should also occur for the null model below!!!
-vector.Q_geno_link <- sapply(geno_gallnet_samelist, computeModules)
-max.Q_geno_link <- max(sapply(vector.Q_geno_link, function(x) max(x@likelihood)))
-
-# Nestedness
-nested_data <- data[order(rowSums(data), decreasing = TRUE), order(colSums(data), decreasing = TRUE)] # creates a nested matrix based on the visweb(type="nested") method
-(wt_NODF <- nested(nested_data, method = "weighted NODF"))
-# czvalues(geno_link_modul, weighted = TRUE) # defaults to hight trophic level. Note this function remains experimental and still unclear of its relevance to quantitative bipartite networks...
-# plotModuleWeb(geno_link_modul)
-
-### Null model analysis. Taken from Dormann and Strauss 2013; Methods in Ecology and Evolution supplement. Note that I did receive a warning indicating that "Some empty columns or rows were deleted"... This take a while to run so don't do it every time!
-# r2dtable = Patefield algorithm (preserves marginal totals of network)
-# shuffle.web = preserves connectance of observed web
-# swap.web = preserves marginal total (r2dtable) and connectance of observed web (shuffle.web)
-# note the qualitative connectance, and not weighted connectance is preserved by these null models.
-# According to Dormann et al. 2009, using the different null models may give us insight to different processes influencing the structure of the network. 
-null.geno_link <- nullmodel(data, N = 100, method = "swap.web")
-modules.null <- sapply(null.geno_link, computeModules)
-like.nulls <- sapply(modules.null, function(x) x@likelihood)
-(z.geno_link <- (max.Q_geno_link - mean(like.nulls))/sd(like.nulls)) 
-# Patefield algortihm z-score
-# swap.web algortihm z-score: 2.64
-# shuffle.web algorithm z-score: 
-
-# Null model for nestedness
-wt_NODF_fxn <- function(x) nested(x, method = "weighted NODF")
-nested.null <- sapply(null.geno_link, wt_NODF_fxn)
-(z.geno_link.wtNODF = (wt_NODF - mean(nested.null))/sd(nested.null))
-
-networklevel(null.geno_link[[2]], index = c("connectance","linkage density","weighted connectance"))
-
-
-
-########## EVERYTHING BELOW IS OLD BUT MAYBE USEFUL
-### Create data frame of interest
-net_focal <- subset(complete_network_data, select = c("Gender","Genotype","plant.position.new","X","gall.sp","gall.id","point.count","g.height","g.width","g.3meas","vLG.pupa","rG.surv","Pont.surv","SG.larv","aSG.larv","Eury.tot","Tory.tot","Meso.tot","Eulo.tot","Lathro.tot","Mymarid","Lestodip","Platy","g.total"))
-
-### Visualize relationship among gall measurement variables. I first explored PCAs with all three gall measurements, however, g.3meas never appeared to contribute unique information. And since I only have g.3meas for a subset of the galls, I have decided to omit it from future analysis and only conduct PCAs on g.height and g.width.
-
-# vLG
-vLG.size.data <- na.omit(subset(net_focal, gall.sp == "vLG", select = g.height:g.width))
-scatterplotMatrix(vLG.size.data)
-vLG.size.pca <- rda(vLG.size.data)
-summary(vLG.size.pca)
-plot(vLG.size.pca, display="sp")
-
-# rG
-rG.size.data <- na.omit(subset(net_focal, gall.sp == "rG", select = g.height:g.width))
-scatterplotMatrix(rG.size.data)
-rG.size.pca <- rda(rG.size.data)
-summary(rG.size.pca)
-plot(rG.size.pca, display="sp")
-
-# rsLG
-rsLG.size.data <- na.omit(subset(net_focal, gall.sp == "rsLG", select = g.height:g.width))
-scatterplotMatrix(rsLG.size.data)
-rsLG.size.pca <- rda(rsLG.size.data)
-summary(rsLG.size.pca)
-plot(rsLG.size.pca, display="sp")
-
-# SG
-SG.size.data <- na.omit(subset(net_focal, gall.sp == "SG", select = g.height:g.width))
-scatterplotMatrix(SG.size.data)
-SG.size.pca <- rda(SG.size.data)
-summary(SG.size.pca)
-plot(SG.size.pca, display="sp")
-
-# aSG
-aSG.size.data <- na.omit(subset(net_focal, gall.sp == "aSG", select = g.height:g.width))
-scatterplotMatrix(aSG.size.data) # not really correlated with each other...
-aSG.size.pca <- rda(aSG.size.data)
-summary(aSG.size.pca)
-plot(aSG.size.pca, display="sp")
-
-###### Finalize data set and melt it
-
-# merge gall size PCs back into big dataframe
-size.PCs <- rbind.data.frame(scores(vLG.size.pca, display="sites"), scores(rG.size.pca, display="sites"), scores(rsLG.size.pca, display="sites"), scores(SG.size.pca, display="sites"), scores(aSG.size.pca,display="sites"))
-size.PCs <- transform(size.PCs, id = rownames(size.PCs))
-net_focal$id = factor(rownames(net_focal))
-
-net_focal <- join(net_focal, size.PCs, by="id")
-net_focal <- subset(net_focal, select = c(Gender:g.width,vLG.pupa:g.total,PC1:PC2))
-
-# examine whether gall size has an effect on parasitism rates.
-## THIS JUST LOOKS AT SURVIVAL AND DOESN'T FOCUS ON PARASITISM AND THEREFORE MAY BE CONFOUNDED A BIT THE "NOTHINGS" INCLUDED IN G.TOTAL. I THINK I NEED TO HAVE SUMMED UP THE PTOID ATTACKS (TRY INCLUDING AND EXCLUDING EXIT HOLES) OVER THE G.TOTAL (AND PTOID ATTACKS + VLG SURVIVAL) TO SEE IF THIS GIVES ANY INSIGHT TO THE CUTOFF VALUE FOR GALL SIZE, OR IF THE MODEL IS A STRONGER PREDICTOR OF PARASITISM.
-vLG.bin <- glm(cbind(vLG.pupa, g.total-vLG.pupa) ~ PC1, subset(net_focal, gall.sp == "vLG"), family="binomial")
-vLG.lm <- lm(vLG.pupa/g.total ~ PC1, subset(net_focal, gall.sp == "vLG"))
-summary(vLG.lm)
-plot(vLG.lm)
-summary(vLG.bin)
-anova(vLG.bin, test = "Chisq")
-plot(vLG.bin)
-library(MASS)
-library(pscl)
-library(rms) # look into the potential of this package.
-#vLG.lrm <- lrm(cbind(vLG.pupa, g.total-vLG.pupa) ~ g.height, subset(net_focal, gall.sp == "vLG"))
-pR2(vLG.bin)
-confint(vLG.bin, level=0.95)
-dose.p(vLG.bin, p=0.5)
-yhat <- fitted(vLG.bin)
-
-plot(vLG.pupa/(g.total) ~ g.height, subset(net_focal, gall.sp == "vLG"))
-lines(yhat[order(g.height)] ~ g.height[order(g.height)], subset(net_focal, gall.sp == "vLG"))
-
-
-
-gall_net_melt <- melt(net_focal, id.vars = c("Genotype","Gender","plant.position.new","X","gall.sp","gall.id","point.count","g.total","g.height","g.width","PC1","PC2"), variable_name = "gall_contents") # preserve zeros for network analysis, because they identify herbivores that were present, just not connected to any parasitoids.
-
-t <- dcast(gall_net_melt, plant.position.new ~ gall.sp + gall_contents, sum)
-plot(rowSums(t[ ,c(60:62,64,66)]) ~ rowSums(t[ ,54:66])) # now I need to account for density...
-
-summary(lm(rowSums(t[ ,c(60:62,64,66)]) ~ rowSums(t[ ,54:66])))
-
-
-### Regional-scale network (all tree samples summed together). Consider using this regional network to identify the most important species (czvalues function)
-total_net <- dcast(gall_net_melt, gall.sp ~ gall_contents, sum)
-rownames(total_net) <- total_net[ ,1]
-total_net_ptoids <- subset(total_net, select=Eury.tot:Platy) # remove gall.sp
-gall_abunds <- rowSums(total_net[,-1])
-names(gall_abunds) <- rownames(total_net)
-
-visweb(total_net_ptoids, type="diagonal") # Compartments sort according to phylogeny
-visweb(total_net_ptoids)
-plotweb(total_net_ptoids, low.abun = gall_abunds - rowSums(total_net_ptoids), abuns.type = "additional")
-networklevel(total_net_ptoids)
-
-### Genotype level network with gall-parasitoid links. Need to account for number of shoots sampled on each genotype.
-
-# create sum of estimated shoots sampled for each genotype
-shoot.countEst.plantinfo <- join(shoot.countEst, plant.position.info[ ,c("Row..","Plant.Position","Genotype","Gender")])
-# note that for plant position 656 I don't have a shoot count estimate for it (DID I REALLY NEVER MEASURE ITS BASAL DIAMETER???)
-plot(shootEst.no18 ~ Genotype, shoot.countEst.plantinfo)
-summary(lm(shootEst.no18 ~ Genotype, shoot.countEst.plantinfo)) # marginally significant variation in the number of shoots sampled per genotype
-shootEst.geno <- aggregate(cbind(shootEst.no18, shootEst.all) ~ Genotype, FUN = sum, shoot.countEst.plantinfo) # calculate the estimated number of shoots sampled per genotype by summing up across all plants.
-shootEst.geno.trans <- transform(shootEst.geno, per1000.no18 = shootEst.no18/1000, per1000.all = shootEst.all/1000)
-
-# create genotype by gall-ptoid bipartite network (not controlling for number of shoots sampled)
-geno_link_net <- dcast(gall_net_melt, Genotype ~ gall.sp + gall_contents, sum)
-geno_link_net_sub <- geno_link_net[ ,-1]
-rownames(geno_link_net_sub) <- geno_link_net$Genotype
-geno_link_net_sub <- geno_link_net_sub[ ,-which(colSums(geno_link_net_sub) == 0)] # remove gall-parasitoid interactions that never occurred
-geno_link_net_sub_noSurv <- geno_link_net_sub[ ,-c(1,3,9,12,14)] # remove columns that indicate survival
-
-networklevel(geno_link_net_sub_noSurv)
-visweb(geno_link_net_sub_noSurv, type="diagonal")
-visweb(geno_link_net_sub_noSurv, type="nested")
-plotweb(geno_link_net_sub_noSurv)
-
-# Control for number of shoots sampled for genotype by gall-ptoid bipartite network. RIGHT NOW I HAVEN'T REMOVED PLANT POSITION 656!!! FOR WHICH I DON'T HAVE A SHOOT ESTIMATE FOR
-geno_link_net_shoots <- join(geno_link_net, shootEst.geno.trans)
-geno_link_net_shoots_sub <- geno_link_net_shoots[ ,-1]
-rownames(geno_link_net_shoots_sub) <- geno_link_net_shoots$Genotype
-geno_link_net_shoots_sub <- geno_link_net_shoots_sub[ ,-which(colSums(geno_link_net_shoots_sub) == 0)] # remove gall-parasitoid interactions that never occurred
-geno_link_net_shoots_sub_noSurv <- geno_link_net_shoots_sub[ ,-c(1,3,9,12,14)] # remove columns that indicate survival
-no18.link.dens.data <- subset(geno_link_net_shoots_sub_noSurv, select = aSG_Tory.tot:vLG_Platy)/geno_link_net_shoots_sub_noSurv$per1000.no18 # frequencies are on a per 1000 shoot basis based on the shoot estimates from omitting no18
-all.link.dens.data <- subset(geno_link_net_shoots_sub_noSurv, select = aSG_Tory.tot:vLG_Platy)/geno_link_net_shoots_sub_noSurv$per1000.all # frequencies are on a per 1000 shoot basis based on the shoot estimates from including all inputs for shoot data.
-
-visweb(no18.link.dens.data, type = "diagonal")
-visweb(no18.link.dens.data)
-plotweb(no18.link.dens.data)
-
-# the functions ceiling, floor, round(x,0) differentially create integers. I will create datasets using all of the different combinations and make sure my results are robust to them. However, if they all show qualitatively the same results, I will use the round(x,0) and the shoot count estimate with all of the shoots for the data.
-
-
-# create a list with 100 of the same geno.link data frame to calculate and identify the maximum modularity value.
-data = round(all.link.dens.data,0)
-
-geno_link_samelist <- list()
-for(i in 1:100){
-  geno_link_samelist[[i]] <- data
-}
-
-### Still need to try this code after I account for shoot estimates. It will probably take a very long time, which is why I have coded it out. Identify iteration generating the maximum modularity value "Q". Note that any adjustments here should also occur for the null model below!!!
-vector.Q_geno_link <- sapply(geno_link_samelist, computeModules)
-max.Q_geno_link <- max(sapply(vector.Q_geno_link, function(x) max(x@likelihood)))
-
-# Nestedness
-nested_data <- data[order(rowSums(data), decreasing = TRUE), order(colSums(data), decreasing = TRUE)] # creates a nested matrix based on the visweb(type="nested") method
-(wt_NODF <- nested(nested_data, method = "weighted NODF"))
-# czvalues(geno_link_modul, weighted = TRUE) # defaults to hight trophic level. Note this function remains experimental and still unclear of its relevance to quantitative bipartite networks...
-# plotModuleWeb(geno_link_modul)
-
-### Null model analysis. Taken from Dormann and Strauss 2013; Methods in Ecology and Evolution supplement. Note that I did receive a warning indicating that "Some empty columns or rows were deleted"... This take a while to run so don't do it every time!
-# r2dtable = Patefield algorithm (preserves marginal totals of network)
-# shuffle.web = preserves connectance of observed web
-# swap.web = preserves marginal total (r2dtable) and connectance of observed web (shuffle.web)
-# note the qualitative connectance, and not weighted connectance is preserved by these null models.
-# According to Dormann et al. 2009, using the different null models may give us insight to different processes influencing the structure of the network. 
-null.geno_link <- nullmodel(data, N = 100, method = "swap.web")
-modules.null <- sapply(null.geno_link, computeModules)
-like.nulls <- sapply(modules.null, function(x) x@likelihood)
-(z.geno_link <- (max.Q_geno_link - mean(like.nulls))/sd(like.nulls)) 
-# Patefield algortihm z-score
-# swap.web algortihm z-score: 2.64
-# shuffle.web algorithm z-score: 
-
-# Null model for nestedness
-wt_NODF_fxn <- function(x) nested(x, method = "weighted NODF")
-nested.null <- sapply(null.geno_link, wt_NODF_fxn)
-(z.geno_link.wtNODF = (wt_NODF - mean(nested.null))/sd(nested.null))
-
-networklevel(null.geno_link[[2]], index = c("connectance","linkage density","weighted connectance"))
-
-############ CODE FOR "Gall-parasitoid network for each genotype (sum all samples within genotype)" BELOW NEEDS TO BE REVIEWED AND MODIFIED
-
-#### Gall-parasitoid network for each genotype (sum all samples within genotype). Right now, this does not account for differences in number of shoots sampled between genotypes (which is likely small)
-geno_net <- cast(gall_net_melt, gall.sp ~ gall_contents | Genotype, sum)
-#geno_net <- geno_net[c(1:3,5:27)]# remove genotype C as it was never part of the dataset
-
-geno_net_new <- list()
-for(i in 1:length(geno_net)){
-  tmp <- geno_net[[i]][,-c(1:6)] # remove gall.sp and surviving gall larva data.
-  geno_net_new[[i]] <- as.data.frame(empty.col(tmp))
-  rownames(geno_net_new[[i]]) <- geno_net[[i]][,1] 
-} # empty.col functions removes parasitoids with no interactions but preserves basal species that were observed in the network.
-
-geno_net_metrics <- list()
-for(i in 1:length(geno_net_new)){
-  geno_net_metrics[[i]] <- network_metrics(as.matrix(geno_net_new[[i]]))
-} 
-geno_net_data <- ldply(geno_net_metrics)
-geno_net_data <- transform(geno_net_data, Geno.ID = c("*","A","B",LETTERS[4:26]), pred.preyRich = predRich/preyRich) 
-
-# Plot relationships among network metrics.
-scatterplotMatrix(geno_net_data[,c(1:7,9)])
-
-
-##### Create networks for each plant position
-
-# create data frames
-pp_net <- cast(gall_net_melt, gall.sp ~ gall_contents | plant.position.new, sum) # network for each plant position
-pp_gall.ptoid.comm <- dcast(gall_net_melt, plant.position.new ~ gall_contents, sum) # community composition of surviving insects
-colnames(pp_gall.ptoid.comm)[1] <- "pp" # for joining with other datasets later
-
-pp_gall.height <- dcast(gall_net_melt, plant.position.new ~ gall.sp, mean, value.var = "g.height")
-colnames(pp_gall.height) <- c("pp", paste("height",colnames(pp_gall.height)[-1],sep="."))
-
-pp_gall.width <- dcast(gall_net_melt, plant.position.new ~ gall.sp, mean, value.var = "g.width")
-colnames(pp_gall.width) <- c("pp", paste("width",colnames(pp_gall.width)[-1],sep="."))
-
-pp_gall.sizePC1 <- dcast(gall_net_melt, plant.position.new ~ gall.sp, mean, value.var = "PC1")
-colnames(pp_gall.sizePC1) <- c("pp", paste("PC1",colnames(pp_gall.sizePC1)[-1],sep="."))
-
-pp_gall.sizePC2 <- dcast(gall_net_melt, plant.position.new ~ gall.sp, mean, value.var = "PC2")
-colnames(pp_gall.sizePC2) <- c("pp", paste("PC2",colnames(pp_gall.sizePC2)[-1],sep="."))
-
-# run loop to remove unwanted columns and change rownames of network level data
-pp_net_new <- list()
-for(i in 1:length(pp_net)){
-  tmp <- pp_net[[i]][,-c(1:6)] # # remove gall.sp and surviving gall larva data.
-  pp_net_new[[i]] <- as.data.frame(empty.col(tmp))
-  rownames(pp_net_new[[i]]) <- pp_net[[i]][,1] 
-} # empty.col functions removes parasitoids with no interactions but preserves basal species that were observed in the network.
-
-# calculate network metrics at each plant position
-pp_net_metrics <- list()
-for(i in 1:length(pp_net_new)){
-  pp_net_metrics[[i]] <- network_metrics(as.matrix(pp_net_new[[i]]))
-} 
-pp_net_data <- ldply(pp_net_metrics) # turn it into a dataframe
-
-# run for loop to extract plant position ID from all networks
-pp <- vector()
-for(i in 1:length(pp_net)){
-  pp[i] <- names(pp_net[i])
-}
-pp_net_data_trans <- transform(pp_net_data, pp = pp, pred.preyRich = predRich/preyRich) # add plant position ID and predator:prey richness ratios
-
-### merge Gender and Genotype info into pp_net_data as well as shoot count estimates. Add some new variables too.
-pp.info <- data.frame(pp = paste("pp",plant.position.info$Plant.Position,sep=""),Geno.ID = plant.position.info$Genotype, Sex = plant.position.info$Gender)
-shoot.count.data <- data.frame(pp = paste("pp", shoot.countEst$Plant.Position,sep=""), shootEst.all = shoot.countEst$shootEst.all, shoot.countEst.no18 = shoot.countEst$shootEst.no18, Galls.found = shoot.countEst$Galls.found)
-
-# create list of all dataframes
-pp_dfs = list(shoot.count.data, pp_net_data_trans,pp_gall.ptoid.comm, pp_gall.height, pp_gall.width, pp_gall.sizePC1, pp_gall.sizePC2, pp.info)
-pp_net_data_merge <- join_all(pp_dfs, by="pp", type = "left")
-
-str(pp_net_data_merge)
-# STILL NEED TO DECIDE WHETHER TO OMIT THESE OR NOT. SURELY THEY NEED TO BE APART OF THE ABUNDANCE DATA, BUT WHAT ABOUT GALL SURVIVAL? PROBABLY NOT.
-pp_net_data_merge[which(pp_net_data_merge$Galls.found == 0),] # Right now, 77 is a mystery (field notes suggest no galls, but there is a gall collection (possibly from survey #1???)).  Right now, I've decided to keep it in the dataset.
-
-pp_net_data_merge <- transform(pp_net_data_merge, connect_wt_NAzero = connect_wt)
-pp_net_data_merge$connect_wt_NAzero[which(is.nan(pp_net_data_merge$connect_wt_NAzero))] <- 0 # since these values had galls but no observed parasitoids, I believe the connectance should be zero...
-
-scatterplotMatrix(pp_net_data_merge[ ,c("vLG.pupa","connect_wt_NAzero")])
-
-# Does gall size vary among genotypes? Need to double check the dcast to see how gall size is measured. I also may need to weight the variables or consider looking at the variance in gall size, or the proportion over a certain threshold value.
-plot(height.vLG ~ Geno.ID, pp_net_data_merge)
-vLG.height <- lm(height.vLG ~ Geno.ID, pp_net_data_merge)
-summary(vLG.height)
-
-# does the number of vLG.pupa vary among genotypes (STILL VERY CRUDE. NEED TO MAKE PROPORTIONAL)
-plot(vLG.pupa ~ Geno.ID, pp_net_data_merge)
-summary(glm(vLG.pupa ~ Geno.ID, pp_net_data_merge, family="poisson")) # no vLG on Genotype W?!?!?!
-
+##### vLG = Iteomyia salicisverruca
 
 ### explore data
-pp_net_summary <- ddply(pp_net_data_merge, .(Geno.ID), summarize, mean_gallRich = mean(preyRich), mean_ptoidRich = mean(predRich))
-max(pp_net_summary$mean_gallRich)
-min(pp_net_summary$mean_gallRich)
-max(pp_net_summary$mean_ptoidRich)
-min(pp_net_summary$mean_ptoidRich)
+
+# histograms
+ggplot(tree_level_interaxn_all_plants) + 
+  geom_density(aes(x = vLG_abund), color = "red") + # count data
+  geom_density(aes(x = rpois(n = length(tree_level_interaxn_all_plants$vLG_abund), lambda = mean(tree_level_interaxn_all_plants$vLG_abund))), color = "blue") + # simulated poisson data
+  geom_density(aes(x = rnegbin(n = length(tree_level_interaxn_all_plants$vLG_abund), mu = mean(tree_level_interaxn_all_plants$vLG_abund), theta = 1.3))) # simulated negative binomial data. Used theta from glm model.
+
+# box plots
+vLG_base <- ggplot(tree_level_interaxn_all_plants, aes(x = Genotype)) 
+vLG_base + geom_boxplot(aes(y = vLG_abund)) 
+vLG_base + geom_boxplot(aes(y = shootEst.no18)) # definitely should account for variation in estimated number of shoots sampled.
+vLG_base + geom_boxplot(aes(y = vLG_abund/shootEst.no18*100)) # at least a couple of large outliers
+
+# identify outliers
+with(tree_level_interaxn_all_plants, which(vLG_abund/shootEst.no18*100 > 10)) #  data points #17 and #121
+tree_level_interaxn_all_plants[c(17,121), "plant.position"] # plant positions 59 and 373.
+
+# genotype means
+vLG_means <- tree_level_interaxn_all_plants %>%
+  group_by(Genotype) %>%
+  summarise(vLG_density_mean = mean(vLG_abund/shootEst.no18*100))
+
+ggplot(vLG_means) +
+  geom_density(aes(x = vLG_density_mean)) + # not normally distributed 
+  geom_density(aes(x = sqrt(vLG_density_mean)), color = "red") # a bit better
 
 
-plot(totRich ~ Geno.ID, pp_net_data_merge)
-plot(preyRich ~ Geno.ID, pp_net_data_merge)
-plot(predRich ~ Geno.ID, pp_net_data_merge)
-plot(connect_wt ~ Geno.ID, pp_net_data_merge) # likely too few data points at the individual tree level to adequately examine this.
-plot(connect_wt_NAzero ~ Geno.ID, pp_net_data_merge)
-hist(pp_net_data_merge$connect_wt_NAzero)
-hist(pp_net_data_merge$connect_wt)
+# create alternative data frame. One where Genotypes with zero vLG are removed and the other with outliers removed.
+vLG_noQU <- tree_level_interaxn_all_plants %>%
+  filter(Genotype != "Q") %>% 
+  filter(Genotype != "U")
+vLG_noOutliers <- tree_level_interaxn_all_plants[-c(17,121),]
+vLG_noOutliersNoQU <- tree_level_interaxn_all_plants[-c(17,121),]  %>%
+  filter(Genotype != "Q") %>% 
+  filter(Genotype != "U")
 
-totRich.glm <- glm(totRich ~ Geno.ID, pp_net_data_merge, family="poisson")
-summary(totRich.glm)
-anova(totRich.glm, test="Chisq")
-plot(totRich.glm) # residuals a bit wonky with lm but the conclusions are qualitatively the same as the poisson. Also the R-squared version of glm (1 - residDev/NullDev) is virtually equivalent to the lm
+# final dataframe chosen for analysis
+vLG.df <- vLG_noOutliers
 
-plot(lm(preyRich ~ Geno.ID, pp_net_data_merge))
-plot(lm(predRich ~ Geno.ID, pp_net_data_merge))
-summary(lm(pred.preyRich ~ Geno.ID, pp_net_data_merge))
-summary(lm(connect_wt ~ Geno.ID, pp_net_data_merge))
+vLG_glm <- glm.nb(vLG_abund ~ offset(log(shootEst.no18)),
+                  data = vLG.df)
+summary(vLG_glm)
 
-# weighted connectance model
-connect_wt.lm <- lm(connect_wt_NAzero ~ Geno.ID, pp_net_data_merge, weights=g.total) # results weighted by the number of galls collected (not gall density!) on each tree.
-summary(connect_wt.lm) # Genotype explains 40.5% of the variance
-plot(connect_wt.lm) # scale-location residual plots looks MUCH better when weighted
-anova(connect_wt.lm)
+vLG_glmm <- glmmPQL(vLG_abund ~ offset(log(shootEst.no18)), random = ~ 1 | Genotype, data = vLG.df, family = negative.binomial(theta = 0.4482, link = log)) # Double check that theta value corresponds to data frame used in glm
 
-# scatterplots exploring relationships amon variables
-scatterplotMatrix(pp_net_data_merge[ ,c("preyRich","predRich","totRich","pred.preyRich", "connect_wt_NAzero","g.total")])
-scatterplotMatrix(na.omit(pp_net_data_merge[ ,c("V","G","LD_q","connect_wt","preyRich","predRich","totRich","pred.preyRich")]))
+ggplot(data = data.frame(resid = residuals(vLG_glmm, type = "pearson"), fit = fitted(vLG_glmm)), aes(x = fit, y = resid)) + 
+  geom_point() +
+  geom_hline(y = 0) +
+  stat_smooth()
+vLG_glmm_ranef <- ranef(vLG_glmm)$"(Intercept)"
+ggQQ_ranef(vLG_glmm_ranef) # looks worse than lmer model below...
 
+vLG_lmer <- lmer(sqrt(vLG_abund/shootEst.no18) ~ (1 | Genotype),
+                 data = vLG.df)
 
-### Community composition models. Do I want to use Euclidean distance or a measure that reflects community composition more?
-library(vegan)
-zeros <- which(rowSums(pp_net_data_merge[ ,c("aSG","rG","rsLG","SG","twG","vLG")]) == 0)
-zeros.ptoid <- which(rowSums(pp_net_data_merge[ ,c("Eury.tot","Tory.tot","Meso.tot","Eulo.tot","Lathro.tot","Lestodip","Platy","Mymarid")])==0)
+ggplot(data = data.frame(resid = residuals(vLG_lmer, type = "pearson"), fit = fitted(vLG_lmer)), aes(x = fit, y = resid)) + 
+  geom_point() +
+  geom_hline(y = 0) +
+  stat_smooth() # do these have to be homoscedastic if the I'm only testing a random effect?
+vLG_ranef <- ranef(vLG_lmer)$Genotype$"(Intercept)"
+ggQQ_ranef(vLG_ranef) # looks pretty good. Looks a bit worse on the low end of the tail, likely because there are a higher proportion of means with low gall abundance.
 
-gall.comm <- pp_net_data_merge[-zeros ,c("aSG","rG","rsLG","SG","twG","vLG")]
-ptoid.comm <- pp_net_data_merge[-zeros.ptoid ,c("Eury.tot","Tory.tot","Meso.tot","Eulo.tot","Lathro.tot","Lestodip","Platy","Mymarid")]
-
-
-adonis(gall.comm ~ Geno.ID, method = "horn", data = pp_net_data_merge[-zeros,] )
-adonis(ptoid.comm ~ Geno.ID, method = "horn", data = pp_net_data_merge[-zeros.ptoid,])
-
-gall.MDS <- metaMDS(gall.comm, distance = "horn", autotransform = FALSE)
-plot(gall.MDS)
-
-rda.gall.comm <- rda(decostand(gall.comm, method = "hell") ~ Geno.ID, data = pp_net_data_merge[-zeros,])
-RsquareAdj(rda.gall.comm)
-plot(rda.gall.comm, display = c("cn","sp"))
-plot(rda.gall.comm) # is this evidence of something weird going on?
-
-# promising that parasitoid community composition still varied among genotypes with a subset of the data
-# Need to consider dropping genotypes that have less than 1 rep.
-# Consider looking at Links instead of species, and how genotype influences this structure.
-rda.ptoid.comm <- rda(decostand(ptoid.comm, method="norm") ~ Geno.ID, data = pp_net_data_merge[-zeros.ptoid,])
-RsquareAdj(rda.ptoid.comm)
-anova(rda.ptoid.comm, by="axis")
-plot(rda.ptoid.comm, display=c("cn","sp"), choices=c(1,2))
-
-### Plots for manuscript
-
-# manage the data
-connect_geno_mean <- ddply(pp_net_data_merge, .(Geno.ID), summarize, mean_connect = mean(connect_wt_NAzero))
-connect_geno_mean.trans <- transform(connect_geno_mean, Geno.ID.ord = reorder(Geno.ID, mean_connect))
+genotype_random_model(x = vLG.df, y = with(vLG.df, sqrt(vLG_abund/shootEst.no18))) # H2 = 0.36. 
 
 
-pp_net_data_merge_connect <- transform(pp_net_data_merge, Geno.ID.order = factor(Geno.ID, levels = levels(connect_geno_mean.trans$Geno.ID.ord)))
-levels(pp_net_data_merge_connect$Geno.ID.order)[-27] # drop genotype
-levels(pp_net_data_merge_connect$Geno.ID.order)[18] <- "C" # replace Genotype * with C, purely for aestheic purposes.
+#### rG = Rabdophaga salicisbrassicoides
 
-# this needs to come AFTER
-levels(connect_geno_mean.trans$Geno.ID.ord)[-27]
-levels(connect_geno_mean.trans$Geno.ID.ord)[18] <- "C"
+# box plots
+rG_base <- ggplot(tree_level_interaxn_all_plants, aes(x = Genotype)) 
+rG_base + geom_boxplot(aes(y = rG_abund)) 
+rG_base + geom_boxplot(aes(y = rG_abund/shootEst.no18*100)) # one huge outlier for genotype S
+ggplot(tree_level_interaxn_all_plants[-121, ], aes(x = Genotype))  + geom_boxplot(aes(y = rG_abund/shootEst.no18*100))
+
+which(with(tree_level_interaxn_all_plants, rG_abund/shootEst.no18*100) > 40) # point #121. Same as one of the ones for vLG
+
+# data frame for rG analyses
+rG.noOutliers <- tree_level_interaxn_all_plants[-121, ]
+rG.noOutliers.noZeroGenos <- rG.noOutliers %>%
+  filter(Genotype != "T") %>%
+  filter(Genotype != "U") %>%
+  filter(Genotype != "V") %>%
+  filter(Genotype != "E")
+rG.df <- rG.noOutliers
+
+# random effect model
+rG_lmer <- lmer(sqrt(rG_abund/shootEst.no18) ~ (1 | Genotype),
+                 data = rG.df)
+summary(rG_lmer)
+
+ggplot(data = data.frame(resid = residuals(rG_lmer, type = "pearson"), fit = fitted(rG_lmer)), aes(x = fit, y = resid)) + 
+  geom_point() +
+  geom_hline(y = 0) +
+  stat_smooth() # do these have to be homoscedastic if the I'm only testing a random effect?
+rG_ranef <- ranef(rG_lmer)$Genotype$"(Intercept)"
+ggQQ_ranef(rG_ranef) # looks okay, except for on high end...
+
+genotype_random_model(x = rG.df, y = with(rG.df, sqrt(rG_abund/shootEst.no18))) # H2 = 0.17
 
 
-# theme
-theme <- theme_bw() + theme(axis.text=element_text(size=16), axis.title = element_text(size = 20, vjust = 0.3), axis.line=element_line(colour="black"), legend.key=element_blank(), panel.grid=element_blank(), panel.border=element_blank(), legend.title = element_blank()) 
+#### rsLG = Pontania californica
 
-# plot
-ggplot(pp_net_data_merge_connect, aes(x = Geno.ID.order, y = connect_wt_NAzero)) + geom_jitter(aes(x = Geno.ID.order, y = connect_wt_NAzero), position = position_jitter(w = 0.1, h = 0), shape = 21, size = 4, color = "grey") + ylab("Connectance") + xlab("Genotype") + layer(data = connect_geno_mean.trans, mapping = aes(x = Geno.ID.ord, y = mean_connect), geom = "point", size = 10, shape = 21,fill = "red") +theme
+# box plots
+rsLG_base <- ggplot(tree_level_interaxn_all_plants, aes(x = Genotype)) 
+rsLG_base + geom_boxplot(aes(y = rsLG_abund)) 
+rsLG_base + geom_boxplot(aes(y = rsLG_abund/shootEst.no18*100)) # no huge outliers
 
-# bubble plot to show which data points had the strongest weights
-qplot(data = pp_net_data_merge_connect, x = Geno.ID.order, y = connect_wt_NAzero, size = g.total, position = position_jitter(w = 0.1, h = 0)) + theme + xlab("Genotype") + ylab("Connectance") + ggtitle("Size of points represent their weight in the linear model")
+# data frame for rsLG analyses
+rsLG.df <- tree_level_interaxn_all_plants
+
+# random effect model
+rsLG_lmer <- lmer(sqrt(rsLG_abund/shootEst.no18) ~ (1 | Genotype),
+                data = rsLG.df)
+summary(rsLG_lmer)
+
+ggplot(data = data.frame(resid = residuals(rsLG_lmer, type = "pearson"), fit = fitted(rsLG_lmer)), aes(x = fit, y = resid)) + 
+  geom_point() +
+  geom_hline(y = 0) +
+  stat_smooth() # do these have to be homoscedastic if the I'm only testing a random effect?
+rsLG_ranef <- ranef(rsLG_lmer)$Genotype$"(Intercept)"
+ggQQ_ranef(rsLG_ranef) # looks okay, except for on low end
+
+genotype_random_model(x = rsLG.df, y = with(rsLG.df, sqrt(rsLG_abund/shootEst.no18))) # H2 = 0.20
 
 
-#######  Explore beta diversity of interaction networks
-# source in packages from github on March 11, 2014
-source('~/Documents/Genotype_Networks/betalink-master/R/metaweb.r')
-source('~/Documents/Genotype_Networks/betalink-master/R/betalink.dist.r')
-source('~/Documents/Genotype_Networks/betalink-master/R/betalink.r')
-source('~/Documents/Genotype_Networks/betalink-master/R/measures.r')
+
+#### aSG = Cecidomyiid sp. A (undescribed stem gall)
+
+# box plots
+aSG_base <- ggplot(tree_level_interaxn_all_plants, aes(x = Genotype)) 
+aSG_base + geom_boxplot(aes(y = aSG_abund)) 
+aSG_base + geom_boxplot(aes(y = aSG_abund/shootEst.no18*100)) # no huge outliers
 
 
-# start off with qualitative metrics
-qual.net.dissim <- betalink.dist(pp_net_new, bf=B01)
+# data frame for aSG analyses
+aSG.df <- tree_level_interaxn_all_plants
 
-adonis(qual.net.dissim$WN ~ pp_net_data_merge$Geno.ID)
-adonis(qual.net.dissim$OS ~ pp_net_data_merge$Geno.ID)
-adonis(qual.net.dissim$S ~ pp_net_data_merge$Geno.ID)
-adonis(qual.net.dissim$ST ~ pp_net_data_merge$Geno.ID)
-adonis(qual.net.dissim$contrib ~ pp_net_data_merge$Geno.ID)
-# so far, I only appeared to find differences in community composition, but none of the other metrics proposed by Poisot et al. 2012. These tree level networks are rather small. It may be better to see which traits are driving dissimilarity in the network at the genotype level, since these webs are likely  more robust. A quantitative metric might be better for the genotype level (maybe at the individual level?)
+# random effect model
+aSG_lmer <- lmer(sqrt(aSG_abund/shootEst.no18) ~ (1 | Genotype),
+                  data = aSG.df)
+summary(aSG_lmer)
 
-# What if I create a dataset of all of pairwise interactions at the individual level, and then look at the effect of Genotype? This may ensure that what I'm doing is appropriate.
+ggplot(data = data.frame(resid = residuals(aSG_lmer, type = "pearson"), fit = fitted(aSG_lmer)), aes(x = fit, y = resid)) + 
+  geom_point() +
+  geom_hline(y = 0) +
+  stat_smooth() # do these have to be homoscedastic if the I'm only testing a random effect?
+aSG_ranef <- ranef(aSG_lmer)$Genotype$"(Intercept)"
+ggQQ_ranef(aSG_ranef) # deviation from normality on high end
 
-##### Playing around. SOME OF THIS DATA NEEDS TO BE CLEANED UP.
-# transform the data to focus on the parasitoid community only and melt it for easy data summaries
-gall_net_all = data.frame(pp = gall_net$plant.position.new, Genotype = gall_net$Genotype, Gender = gall_net$Gender, gall.sp = gall_net$gall.sp, Eury.tot = gall_net$Eury.mal + gall_net$Eury.fem, Tory.tot = gall_net$Tory.mal + gall_net$Tory.fem, Meso.tot = gall_net$Mesopol + gall_net$Ptero.2, Eulo.tot = gall_net$Eulo.fem + gall_net$Eulo.mal, Lathro.tot = gall_net$Lathro.fem + gall_net$Lathro.mal, Lestodip = gall_net$Lestodip, Platy = gall_net$Platy, Mymarid = gall_net$Mymarid, vLG.surv = gall_net$vLG.pupa, rG.surv = gall_net$rG.wh.larv + gall_net$rG.or.larv, SG.surv = gall_net$SG.larv, aSG.surv = gall_net$aSG.larv, twG.surv = gall_net$twG.larv, Pontania.surv = gall_net$Pont.ad + gall_net$Pont.prep) # do I need to include exit.hole in this? May need to reassess rG white/orange larva situation
-#  unclear = with(gall_net, moth.larv + unk.ptoid + unk.larv + moth.ad3 + incidental.sp.239 + diff.or.larv + unsure + nothing + inq.dam + exit.hole)
-# g.total = rowSums(subset(gall_net, select = vLG.pupa:nothing))
+genotype_random_model(x = aSG.df, y = with(aSG.df, sqrt(aSG_abund/shootEst.no18))) # H2 = 0.12
 
-gall_net_all_melt <- melt(gall_net_all, id.vars = c("Genotype","Gender","pp","gall.sp")) # preserve zeros for network analysis, because they identify herbivores that were present, just not connected to any parasitoids.
+#### SG = Cecidomyiid sp. A (undescribed stem gall)
 
-t <- dcast(gall_net_all_melt, pp ~ gall.sp + variable, sum)
-zero_links <- which(colSums(t[,-1]) == 0)
-zero_rows <- which(rowSums(t[,-1]) == 0)
+# box plots
+SG_base <- ggplot(tree_level_interaxn_all_plants, aes(x = Genotype)) 
+SG_base + geom_boxplot(aes(y = SG_abund)) 
+SG_base + geom_boxplot(aes(y = SG_abund/shootEst.no18*100)) # note that genotype Y is associated with a module for SG_Platy, but that this was likely driven by a single outlying interaction.
 
-t.sub <- t[-zero_rows,-(zero_links+1)]
 
-t.sub.geno <- join(t.sub, pp.info, by = "pp")
+# data frame for SG analyses
+SG.df <- tree_level_interaxn_all_plants
 
-adonis(t.sub.geno[ ,2:30] ~ Geno.ID, t.sub.geno, method = "horn")
+# random effect model
+SG_lmer <- lmer(sqrt(SG_abund/shootEst.no18) ~ (1 | Genotype),
+                 data = SG.df)
+summary(SG_lmer)
 
-rda.exp <- rda(decostand(t.sub.geno[ ,2:30], method="hell") ~ Geno.ID, t.sub.geno)
-RsquareAdj(rda.exp)
-#anova(rda.exp, by = "axis")
-plot(rda.exp, display=c("sp","cn"))
+ggplot(data = data.frame(resid = residuals(SG_lmer, type = "pearson"), fit = fitted(SG_lmer)), aes(x = fit, y = resid)) + 
+  geom_point() +
+  geom_hline(y = 0) +
+  stat_smooth() # do these have to be homoscedastic if the I'm only testing a random effect?
+SG_ranef <- ranef(SG_lmer)$Genotype$"(Intercept)"
+ggQQ_ranef(SG_ranef) # deviation from normality on high end
 
-cap.exp <- capscale(t.sub.geno[,2:30] ~ Geno.ID, t.sub.geno, distance = "horn")
-summary(cap.exp)
-plot(cap.exp, display=c("sp","cn"))
+genotype_random_model(x = SG.df, y = with(SG.df, sqrt(SG_abund/shootEst.no18))) # H2 = 0.06
 
-cca.exp <- cca(t.sub.geno[,c(2:20,22:30)] ~ Geno.ID, t.sub.geno) # try removing SG2_Platy
-summary(cca.exp)
-plot(cca.exp, display=c("sp"))
+
+######### Mixed effect models of which plant traits determine variation in gall densities.
+
+### Explore correlations
+library(psych)
+library(car)
+
+gall_density_trait.df <- galls_traits %>%
+  mutate(sqrt_vLG_density = sqrt(vLG_abund/shootEst.no18),
+         sqrt_rG_density = sqrt(rG_abund/shootEst.no18),
+         sqrt_rsLG_density = sqrt(rsLG_abund/shootEst.no18),
+         sqrt_aSG_density = sqrt(aSG_abund/shootEst.no18)) %>%
+  select(sqrt_vLG_density, sqrt_rG_density, sqrt_rsLG_density, sqrt_aSG_density, Total_Area:sla_resid) # didn't include SG, because it didn't display significant variation among genotypes.
+
+gall_density_trait.df.noOutliers <- gall_density_trait.df[-c(15,93), ] # note that data points 15 & 93 were the original outliers for vLG_density that I removed from the previous analysis, and that point #93 was also an outlier for rG. So I decided to remove them both from this dataset
+
+gall.trait.df <- gall_density_trait.df.noOutliers
+
+# vLG correlations
+scatterplotMatrix(x = select(gall.trait.df, sqrt_vLG_density, water_content, C_N_imputed:sla_resid))
+
+vLG_density.lm <- lm(sqrt(vLG_abund/shootEst.no18) ~ C_N_imputed + I(C_N_imputed^2), galls_traits[-c(15,19),])
+summary(vLG_density.lm)
+plot(vLG_density.lm)
+plot(residuals(vLG_density.lm) ~ Genotype, galls_traits[-c(15,19),])
+
+vLG_density.glm <- MASS::glm.nb(vLG_abund ~ offset(log(shootEst.no18)) + C_N_imputed, galls_traits[-c(15,19),])
+summary(vLG_density.glm)
+plot(vLG_density.glm)
+plot(residuals(vLG_density.glm) ~ Genotype, galls_traits[-c(15,19),])
+
+pp <- factor(galls_traits$plant.position)
+vLG_density.lmer <- lmer(sqrt(vLG_abund/shootEst.no18) ~  C_N_imputed + I(C_N_imputed^2) + (1 | Genotype), data = galls_traits[-c(15,93), ])
+summary(vLG_density.lmer)
+plot(vLG_density.lmer)
+
+vLG_density.lmer.null <- lmer(sqrt(vLG_abund/shootEst.no18) ~  1 + (1 | Genotype), data = galls_traits[-c(15,93), ])
+
+anova(vLG_density.lmer.null, vLG_density.lmer)
+
+gall_trait.corrs <- corr.test(y = select(gall_density_trait.df, vLG_density:aSG_density), x = select(gall_density_trait.df, Total_Area:sla_resid))
+gall_trait.corrs$r
+
+test <- galls_traits
+
+
+#vLG_density_nullnoQU <- MASS::glm.nb(vLG_abund ~ offset(log(shootEst.no18)), vLG_noQU)
+#vLG_density_null <- MASS::glm.nb(vLG_abund ~ offset(log(shootEst.no18)), tree_level_interaxn_all_plants)
+#vLG_density_null_noOutliers <- MASS::glm.nb(vLG_abund ~ offset(log(shootEst.no18)), vLG_noOutliers)
+
+#vLG_density_glm_noQU <- MASS::glm.nb(vLG_abund ~ offset(log(shootEst.no18)) + Genotype, vLG_noQU)
+vLG_density_glm <- glm.nb(vLG_abund ~ offset(log(shootEst.no18)) + Genotype, tree_level_interaxn_all_plants)
+vLG_density_glm_noOutliers <- MASS::glm.nb(vLG_abund ~ offset(log(shootEst.no18)) + Genotype, vLG_noOutliers)
+vLG_density_fewzeros <- MASS::glm.nb(vLG_abund ~ offset(log(shootEst.no18)) + Genotype, data = subset(vLG_noOutliers, Genotype != "Q" & Genotype != "U"  & Genotype !=  "A" & Genotype !=  "G" & Genotype !=  "N" & Genotype !=  "P")) # residuals still don't look great.
+
+summary(vLG_density_glm_noQU)
+summary(vLG_density_glm)
+summary(vLG_density_glm_noOutliers)
+summary(vLG_density_fewzeros)
+
+anova(vLG_density_nullnoQU, vLG_density_glm_noQU)
+anova(vLG_density_null, vLG_density_glm)
+anova(vLG_density_null_noOutliers, vLG_density_glm_noOutliers)
+
+plot(vLG_density_glm_noQU)
+plot(vLG_density_glm)
+plot(vLG_density_glm_noOutliers)
+plot(vLG_density_fewzeros)
+
+vLG_density_visreg_noQU <- visreg(vLG_density_glm_noQU, "Genotype", scale = "response", cond = list(shootEst.no18 = 200), ylim = c(0,40)) # 2 likely outliers
+vLG_density_visreg <- visreg(vLG_density_glm, "Genotype", scale = "response", cond = list(shootEst.no18 = 200), ylim = c(0,40)) # 2 likely outliers
+vLG_density_visreg_noOutliers <- visreg(vLG_density_glm_noOutliers, "Genotype", scale = "response", cond = list(shootEst.no18 = 200), ylim = c(0,25))
+
+# evaluate the utility of zeroinflated model. I chose a zero-inflated vs. hurdle model, so I could model the "false zeros" in the data as a function of the number of shoots I sampled.
+vLG_zeroinfl <- zeroinfl(vLG_abund ~ offset(log(shootEst.no18)) + Genotype | log(shootEst.no18), vLG_noOutliers, dist = "negbin") # this models zeros simply as a function of the number of shoots sampled. In other words, this is trying to detect the "false zeros" in the data. Negative binomial gave a substantially better fit that the poisson model. 
+summary(vLG_zeroinfl)  # note that my modelling of the zeros is not significant, which may further justify me not having to use a zero inflated model
+vLG_zeroinfl_visreg <- visreg(vLG_zeroinfl)
+plot(residuals(vLG_zeroinfl, type = "pearson") ~ fitted(vLG_zeroinfl))
+
+plot(residuals(vLG_density_glm_noQU, type = "pearson") ~ fitted(vLG_density_glm_noQU), col = vLG_noQU$Genotype)
+text(residuals(vLG_density_glm_noQU, type = "pearson") ~ fitted(vLG_density_glm_noQU),label = vLG_noQU$Genotype)
+
+AIC(vLG_zeroinfl)
+AIC(vLG_density_glm_noOutliers)
+
+vuong(vLG_density_glm_noOutliers, vLG_zeroinfl) # null models are indisinguishable, although AIC favors vLG_zeroinfl and likelihood statistic favors glm.nb
+
+
+genotype_random_model(x = vLG_noOutliers, y = sqrt(vLG_noOutliers$vLG_abund/vLG_noOutliers$shootEst.no18))
+plot(sqrt(vLG_noOutliers$vLG_abund/vLG_noOutliers$shootEst.no18) ~ Genotype, vLG_noOutliers)
+
+vLG_fewzeros.df <- subset(vLG_noOutliers, Genotype != "Q" & Genotype != "U"  & Genotype !=  "A" & Genotype !=  "G" & Genotype !=  "N" & Genotype !=  "P")
+vLG_density_lm <- lm(sqrt(vLG_abund/shootEst.no18) ~ Genotype, vLG_fewzeros.df) # wow, adj. R2 is remarkably close to Broad sense heritability estimate. Residuals look great aside from the heterogeneity in variance. Even after I remove genotypes with pretty low zero values, the model is still significant and the residuals look pretty good
+plot(residuals(vLG_density_lm) ~ fitted(vLG_density_lm))
+plot(residuals(vLG_density_lm) ~  vLG_fewzeros.df$Genotype)
+
+# create a data frame with estimates of densities from models as well as from the original data at the tree level
+vLG_raw_means <- tree_level_interaxn_all_plants %>%
+  group_by(Genotype) %>%
+  summarise(vLG_density_mean = mean(vLG_abund/shootEst.no18*200))
+vLG_raw_means.noOutliers <- vLG_noOutliers %>%
+  group_by(Genotype) %>%
+  summarise(vLG_density_mean.noOutliers = mean(vLG_abund/shootEst.no18*200))
+
+vLG_model_densities <- data.frame(Genotype = vLG_density_visreg$Genotype$x$xx,
+                                   vLG_glm.nb.ALL = vLG_density_visreg$Genotype$y$fit,
+                                   vLG_glm.nb.noOutliers = vLG_density_visreg_noOutliers$Genotype$y$fit,
+                                  vLG_zeroinfl.noOutliers = vLG_zeroinfl_visreg$Genotype$y$fit) # not necessary to include noQU estimates because it doesn't alter the mean estimates of the other genotypes.
+vLG_density_estimates <- join_all(list(vLG_model_densities, vLG_raw_means, vLG_raw_means.noOutliers), by = "Genotype")
+
+plot(vLG_glm.nb.noOutliers ~ vLG_glm.nb.ALL, vLG_density_estimates) # visually shows how the mean estimates are altered by the outlying data points.
+plot(vLG_glm.nb.noOutliers ~ vLG_density_mean.noOutliers, vLG_density_estimates)
+plot(vLG_glm.nb.ALL ~ vLG_density_mean, vLG_density_estimates) # outliers appear to bias the glm model estimates even more (especially, Genotype S)
+
+# rG
+hist(tree_level_interaxn_all_plants$rG_abund)
+hist(rpois(n = length(tree_level_interaxn_all_plants$rG_abund), lambda = mean(tree_level_interaxn_all_plants$rG_abund)))
+hist(rnegbin(n = length(tree_level_interaxn_all_plants$rG_abund), mu = mean(tree_level_interaxn_all_plants$rG_abund), theta = 0.55)) # used theta from glm model
+
+plot(rG_abund/shootEst.no18*200 ~ Genotype, tree_level_interaxn_all_plants[-121,]) # one major outlier
+with(tree_level_interaxn_all_plants, which(rG_abund/shootEst.no18*200 > 20)) # one of the same outliers for vLG. Also, one of our lowest shoot estimates for the number of shoots sampled. Data point #121
+
+
+rG_density_null <-  MASS::glm.nb(rG_abund ~ offset(log(shootEst.no18)), tree_level_interaxn_all_plants) 
+rG_density_null_noOutlier <-  MASS::glm.nb(rG_abund ~ offset(log(shootEst.no18)), tree_level_interaxn_all_plants[-121, ]) 
+
+rG_density_glm <- MASS::glm.nb(rG_abund ~ offset(log(shootEst.no18)) + Genotype, tree_level_interaxn_all_plants) 
+rG_density_glm_noOutlier <- MASS::glm.nb(rG_abund ~ offset(log(shootEst.no18)) + Genotype, tree_level_interaxn_all_plants[-121, ]) 
+
+summary(rG_density_glm)
+summary(rG_density_glm_noOutlier)
+
+anova(rG_density_null, rG_density_glm)
+anova(rG_density_null_noOutlier, rG_density_glm_noOutlier)
+
+plot(rG_density_glm)
+plot(rG_density_glm_noOutlier)
+
+rG_density_visreg <- visreg(rG_density_glm, "Genotype", scale = "response", cond = list(shootEst.no18 = 200), ylim = c(0,120)) # one major outlier
+rG_density_visreg_noOutliers <- visreg(rG_density_glm_noOutlier, "Genotype", scale = "response", cond = list(shootEst.no18 = 200), ylim = c(0,25)) 
+
+genotype_random_model(x = tree_level_interaxn_all_plants[-121, ], y = sqrt(tree_level_interaxn_all_plants$rG_abund[-121]/tree_level_interaxn_all_plants$shootEst.no18[-121]))
+
+rG_density_lm <- lm(sqrt(rG_abund/shootEst.no18) ~ Genotype, tree_level_interaxn_all_plants[-121, ])
+summary(rG_density_lm)
+plot(rG_density_lm)
+
+rG_removeZeroGenotypes = tree_level_interaxn_all_plants %>%
+  filter(Genotype != "T") %>%
+  filter(Genotype != "U") %>%
+  filter(Genotype != "V") %>%
+  filter(Genotype != "E") 
+
+# evaluate the utility of zeroinflated model. I chose a zero-inflated vs. hurdle model, so I could model the "false zeros" in the data as a function of the number of shoots I sampled.
+rG_zeroinfl <- zeroinfl(rG_abund ~ offset(log(shootEst.no18)) + Genotype | log(shootEst.no18), tree_level_interaxn_all_plants[-121, ], dist = "negbin") # this models zeros simply as a function of the number of shoots sampled. In other words, this is trying to detect the "false zeros" in the data. Negative binomial gave a substantially better fit that the poisson model. 
+summary(rG_zeroinfl) # note that my modelling of the binomial part is not significant, which may further justify me not having to use a zero inflated model
+rG_zeroinfl_visreg <- visreg(rG_zeroinfl)
+
+AIC(rG_zeroinfl) # only marginally better than glm.nb
+AIC(rG_density_glm_noOutlier)
+
+vuong(rG_density_glm_noOutlier, rG_zeroinfl) # null models are indisinguishable, although both AIC and vuong show slight favor for rG_zeroinfl.
+
+rGnegbin <- MASS::glm.nb(rG_abund ~ offset(log(shootEst.no18)) + Genotype, rG_removeZeroGenotypes)
+summary(rGnegbin)
+anova(MASS::glm.nb(rG_abund ~ offset(log(shootEst.no18)), rG_removeZeroGenotypes), rGnegbin) # still significant differences among genotypes in mean abundances even after removing the genotypes with zeros.
+
+rG_raw_means <- tree_level_interaxn_all_plants %>%
+  group_by(Genotype) %>%
+  summarise(rG_density_mean = mean(rG_abund/shootEst.no18*200))
+
+rG_raw_means.noOutliers <- tree_level_interaxn_all_plants[-121, ] %>%
+  group_by(Genotype) %>%
+  summarise(rG_density_mean.noOutliers = mean(rG_abund/shootEst.no18*200))
+
+rG_model_densities <- data.frame(Genotype = rG_density_visreg$Genotype$x$xx,
+                                  rG_glm.nb.ALL = rG_density_visreg$Genotype$y$fit,
+                                  rG_glm.nb.noOutliers = rG_density_visreg_noOutliers$Genotype$y$fit,
+                                 rG_zeroinfl.noOutliers = rG_zeroinfl_visreg$Genotype$y$fit) 
+rG_density_estimates <- join_all(list(rG_model_densities, rG_raw_means, rG_raw_means.noOutliers), by = "Genotype")
+
+scatterplotMatrix(rG_density_estimates[ ,-1]) # outlying data point really appears to bias the Genotype's mean estimate.
+
+
+# rsLG
+hist(tree_level_interaxn_all_plants$rsLG_abund) # possible zero inflation
+plot(rsLG_abund/shootEst.no18*200 ~ Genotype, tree_level_interaxn_all_plants) # no really clear outliers.
+
+rsLG_density_null <-  MASS::glm.nb(rsLG_abund ~ offset(log(shootEst.no18)), tree_level_interaxn_all_plants)
+rsLG_density_glm <- MASS::glm.nb(rsLG_abund ~ offset(log(shootEst.no18)) + Genotype, tree_level_interaxn_all_plants)
+summary(rsLG_density_glm)
+anova(rsLG_density_null, rsLG_density_glm) 
+plot(rsLG_density_glm)
+
+rsLG_density_visreg <- visreg(rsLG_density_glm, "Genotype", scale = "response", cond = list(shootEst.no18 = 200), ylim = c(0,10))
+
+genotype_random_model(x = tree_level_interaxn_all_plants, y = sqrt(tree_level_interaxn_all_plants$rsLG_abund/tree_level_interaxn_all_plants$shootEst.no18))
+
+rsLG_removeZeroGenotypes = tree_level_interaxn_all_plants %>%
+  filter(Genotype != "R") %>%
+  filter(Genotype != "P") %>%
+  filter(Genotype != "N") %>%
+  filter(Genotype != "E") %>%
+  filter(Genotype != "T") %>%
+  filter(Genotype != "Y") %>%
+  filter(Genotype != "Z")
+
+# evaluate the utility of zeroinflated model. I chose a zero-inflated vs. hurdle model, so I could model the "false zeros" in the data as a function of the number of shoots I sampled.
+rsLG_zeroinfl <- zeroinfl(rsLG_abund ~ offset(log(shootEst.no18)) + Genotype | log(shootEst.no18), tree_level_interaxn_all_plants, dist = "negbin") # this models zeros simply as a function of the number of shoots sampled. In other words, this is trying to detect the "false zeros" in the data. Negative binomial gave a substantially better fit that the poisson model. 
+summary(rsLG_zeroinfl) # note that my modelling of the binomial part is not significant, which may further justify me not having to use a zero inflated model
+rsLG_zeroinfl_visreg <- visreg(rsLG_zeroinfl)
+
+AIC(rsLG_zeroinfl) 
+AIC(rsLG_density_glm) # favored over zeroinfl
+
+vuong(rsLG_density_glm, rsLG_zeroinfl) # null models are indisinguishable
+
+rsLGnegbin <- MASS::glm.nb(rsLG_abund ~ offset(log(shootEst.no18)) + Genotype, rsLG_removeZeroGenotypes)
+rsLGhurdle <- hurdle(rsLG_abund ~ offset(log(shootEst.no18)) + Genotype, rsLG_removeZeroGenotypes, dist = "negbin") # need to remove genotypes with only zeros, because otherwise the solution is singular
+rsLGzeroinfl <- zeroinfl(rsLG_abund ~ offset(log(shootEst.no18)) + Genotype, rsLG_removeZeroGenotypes, dist = "negbin") # error - system is exactly singular
+
+AIC(rsLG_density_glm)
+AIC(rsLGnegbin) # outperforms hurdle and zeroinflated model.
+AIC(rsLGhurdle)
+AIC(rsLGzeroinfl) 
+
+#summary(rsLGnegbin)
+#anova(MASS::glm.nb(rsLG_abund ~ offset(log(shootEst.no18)), rsLG_removeZeroGenotypes), rsLGnegbin) # no longer significant if zero genotypes are removed.
+
+rsLG_raw_means <- tree_level_interaxn_all_plants %>%
+  group_by(Genotype) %>%
+  summarise(rsLG_density_mean = mean(rsLG_abund/shootEst.no18*200))
+
+rsLG_model_densities <- data.frame(Genotype = rsLG_density_visreg$Genotype$x$xx,
+                                 rsLG_glm.nb.ALL = rsLG_density_visreg$Genotype$y$fit) 
+rsLG_density_estimates <- left_join(rsLG_model_densities, rsLG_raw_means, by = "Genotype")
+
+
+# aSG
+table(tree_level_interaxn_all_plants$aSG_abund)
+hist(tree_level_interaxn_all_plants$aSG_abund) # binomial model may be more appropriate given the infrequent number of counts greater than 1
+hist(rpois(n = length(tree_level_interaxn_all_plants$aSG_abund), lambda = mean(tree_level_interaxn_all_plants$aSG_abund)))
+hist(rnegbin(n = length(tree_level_interaxn_all_plants$aSG_abund), mu = mean(tree_level_interaxn_all_plants$rG_abund), theta = 0.55)) # used theta from glm model
+
+plot(aSG_abund/shootEst.no18*200 ~ Genotype, tree_level_interaxn_all_plants)
+with(tree_level_interaxn_all_plants, which(aSG_abund/shootEst.no18*200 > 7))
+
+aSG.geno.nonzeros <- subset(tree_level_interaxn_all_plants, 
+                            Genotype != "A" &
+                            Genotype != "M" &
+                            Genotype != "P" &
+                            Genotype != "T" &
+                            Genotype != "U" &
+                            Genotype != "W" &
+                            Genotype != "Z")
+
+aSG_density_glm <- glm(aSG_abund ~ offset(log(shootEst.no18)) + Genotype, tree_level_interaxn_all_plants, family = "poisson") 
+summary(aSG_density_glm) # underdispersion in poisson model, suggesting it may not be appropriate
+plot(aSG_density_glm)
+anova(aSG_density_glm, test = "Chi") # still significant after removing "zero value" genotypes.
+
+aSG_bin_glm <- glm(aSG_abund > 0 ~ offset(log(shootEst.no18)) + Genotype, aSG.geno.nonzeros, family = "binomial") 
+summary(aSG_bin_glm) # no overdispersion in poisson model
+plot(aSG_bin_glm)
+anova(aSG_bin_glm, test = "Chi") # still significant with binomial model. Binomial model no longer significant after removing "zero value" genotypes. 
+
+aSG_density_visreg <- visreg(aSG_density_glm, "Genotype", scale = "response", cond = list(shootEst.no18 = 200), ylim = c(0,15))
+
+genotype_random_model(x = tree_level_interaxn_all_plants, y = sqrt(tree_level_interaxn_all_plants$aSG_abund/tree_level_interaxn_all_plants$shootEst.no18))
+
+aSG_raw_means <- tree_level_interaxn_all_plants %>%
+  group_by(Genotype) %>%
+  summarise(aSG_density_mean = mean(aSG_abund/shootEst.no18*200))
+
+summary(lm(sqrt(aSG_abund/shootEst.no18) ~ Genotype, aSG.geno.nonzeros)) # still a bit of heteroscedasticity after removing genotypes with zero values. 
+
+aSG_model_densities <- data.frame(Genotype = aSG_density_visreg$Genotype$x$xx,
+                                   aSG_glm.nb.ALL = aSG_density_visreg$Genotype$y$fit) 
+aSG_density_estimates <- left_join(aSG_model_densities, aSG_raw_means, by = "Genotype")
+
+
+# SG
+plot(SG_abund/shootEst.no18*200 ~ Genotype, tree_level_interaxn_all_plants)
+
+SG_density_glm <- glm(SG_abund > 0 ~ offset(log(shootEst.no18)) + Genotype, tree_level_interaxn_all_plants, family = "binomial") 
+summary(SG_density_glm) # little overdispersion in poisson model. Same results with quasipoisson. iteration for theta doesn't converge for glm.nb so its likely not necessary.
+plot(SG_density_glm)
+anova(SG_density_glm, test = "Chi") # I don't trust either the quasipoisson or poisson models... Not significant if you use a binomial model
+
+SG_density_visreg <- visreg(SG_density_glm, "Genotype", scale = "response", cond = list(shootEst.no18 = 200), ylim = c(0,100)) # I think some of these density estimates are highly unrealistic...
+
+genotype_random_model(x = tree_level_interaxn_all_plants, y = sqrt(tree_level_interaxn_all_plants$SG_abund/tree_level_interaxn_all_plants$shootEst.no18))
+
+# didn't obtain density estimates for SG because they were too low and not significant
+
+##### compile data set for gall density estimates at the genotype level through a variety of methods
+
+gall_densities <- join_all(list(vLG_density_estimates, rG_density_estimates, rsLG_density_estimates, aSG_density_estimates), by = "Genotype")
+write.csv(gall_densities, "~/Documents/Genotype_Networks/data/gall_density_estimates_genotype_level.csv")
+
+### Figures for vLG and rG abund
+theme <- theme_bw() + theme(text = element_text(family = "Verdana", size = 24), legend.key=element_blank(), axis.title.x = element_text(vjust = -0.5), axis.title.y = element_text(vjust = 0.5), axis.line=element_line(colour="black"), panel.grid=element_blank(), panel.border=element_blank(), legend.title=element_blank())
+
+# Total herbivore abundance
+gall.geno.sum <- tree_level_interaxn_all_plants %>% # removing plant position #121 for rG, because of the ridiculously high value
+  group_by(Genotype) %>%
+  summarise(vLG.dens.mean = mean(vLG_abund/shootEst.no18*200), vLG.dens.se = sd(vLG_abund/shootEst.no18*200)/sqrt(length(vLG_abund/shootEst.no18*200)))
+
+gall.geno.sum.rG <- tree_level_interaxn_all_plants[-121, ] %>% # removing plant position #121 for rG, because of the ridiculously high value
+  group_by(Genotype) %>%
+  summarise(rG.dens.mean = mean(rG_abund/shootEst.no18*200), rG.dens.se = sd(rG_abund/shootEst.no18*200)/sqrt(length(rG_abund/shootEst.no18*200)), N = n()) %>%
+  arrange(rG.dens.mean)
+
+gall.geno.sum.rG <- mutate(gall.geno.sum.rG, Geno.ord = factor(Genotype, levels = as.character(Genotype), ordered = TRUE))
+levels(gall.geno.sum.rG$Geno.ord)[24] <- "C"
+
+gall.geno.sum <- mutate(gall.geno.sum, Geno.ord = factor(Genotype, levels = as.character(Genotype), ordered = TRUE))
+levels(gall.geno.sum$Geno.ord)[10] <- "C" # for aesthetics
+
+ggplot(gall.geno.sum, aes(x = Geno.ord, y = vLG.dens.mean)) + 
+  geom_errorbar(aes(ymin = vLG.dens.mean - vLG.dens.se, ymax = vLG.dens.mean + vLG.dens.se), width = 0.2) +
+  geom_point(shape = 21, fill = "steelblue", size = 10) + 
+  theme + 
+  xlab ("Genotype") + 
+  ylab ("No. individuals per 200 shoots")
+ggsave("~/Documents/Genotype_Networks/vLG_density_variation.png", width = 11.5, height = 8, units = "in", dpi = 300)
+
+rG_plot <- ggplot(gall.geno.sum.rG, aes(x = Geno.ord, y = rG.dens.mean)) + 
+  geom_errorbar(aes(ymin = rG.dens.mean - rG.dens.se, ymax = rG.dens.mean + rG.dens.se), width = 0.2) +
+  geom_point(shape = 21, fill = "steelblue", size = 10) + 
+  theme + 
+  xlab ("Genotype") + 
+  scale_y_continuous(breaks = seq(0,10,2), limits = c(0,10)) + 
+  ylab ("No. individuals per 200 shoots")
+ggsave("~/Documents/Genotype_Networks/rG_density_variation.png", width = 11.5, height = 8, units = "in", dpi = 300)
+
+library(gridExtra)
+gp1<- ggplot_gtable(ggplot_build(vLG_plot))
+gp2<- ggplot_gtable(ggplot_build(rG_plot))
+
+maxWidth = unit.pmax(gp1$widths[2:3], gp2$widths[2:3])
+gp1$widths[2:3] <- maxWidth
+gp2$widths[2:3] <- maxWidth
+
+grid.arrange(gp1, gp2, ncol = 1)
+
+#ggsave(vLG_rG_density_variation, "~/Documents/Genotype_Networks/vLG_rG_density_variation.png", width = 11.5, height = 8, units = "in", dpi = 300)
+
+
+
+### Explore tree-level data
+pdf("~/Documents/Genotype_Networks/boxplot_gall_parasitoid_responses_to_genotype.pdf")
+for(i in 7:length(tree_level_interaxn_all_plants)){
+  plot(tree_level_interaxn_all_plants[ ,i] ~ tree_level_interaxn_all_plants$Genotype, xlab = "Genotype", ylab = paste(names(tree_level_interaxn_all_plants)[i]))
+}
+dev.off()
+
+
+### Does gall community composition vary among willow genotypes?
+gall.comm <- select(tree_level_interaxn_all_plants, Genotype, aSG_abund:rsLG_abund)
+gall.comm <- filter(gall.comm, rowSums(gall.comm[ ,-1]) > 0)
+table(gall.comm$Genotype) # J, N, U have sample sizes less than 3
+
+scatterplotMatrix(log(gall.comm[,-1]+1))
+
+gall.comm.genotype <- gall.comm %>%
+  group_by(Genotype) %>%
+  summarise_each(funs(sum)) %>%
+  filter(Genotype %in% c("A","V","X")) %>%
+  mutate(total_abund = aSG_abund + rG_abund + vLG_abund + SG_abund + rsLG_abund) 
+gall.com.genotype.prop <- round(gall.comm.genotype[,2:6]/gall.comm.genotype$total_abund,2)
+
+
+gall.comm.sub <- filter(gall.comm, Genotype %in% c("*","A","B","D","E","F","G","H","I","K","L","M","O","P","Q","R","S","T","V","W","X","Y","Z"))
+
+gall.comm.horn <- vegdist(gall.comm[ ,-1], method = "horn")
+gall.comm.horn.sub <- vegdist(gall.comm.sub[ ,-1], method = "horn") # results robust to removal of genotypes with low sample sizes
+
+adonis(gall.comm[ ,-1] ~ Genotype, gall.comm, method = "horn")
+adonis(gall.comm.sub[ ,-1] ~ Genotype, gall.comm.sub, method = "horn")
+
+gall.comm.cap <- capscale(gall.comm[ ,-1] ~ Genotype, gall.comm, distance = "horn")
+plot(gall.comm.cap, display = c("cn","sp"))
+
+gall.comm.meandist <- meandist(gall.comm.horn, grouping = gall.comm$Genotype)
+low <- lower.tri(gall.comm.meandist)
+gall.comm.meandist.lower <- gall.comm.meandist[which(low == TRUE)]
+mean(gall.comm.meandist.lower) # 0.60 mean dissimilarity among genotypes
+mean(diag(gall.comm.meandist)[-21]) # 0.53 mean dissimilarity within genotypes.
+hist(diag(gall.comm.meandist)[-21])
+hist(gall.comm.meandist.lower)
+quantile(gall.comm.meandist.lower)
+
+geno.N <- as.data.frame(table(gall.comm$Genotype))
+plot(diag(gall.comm.meandist) ~ geno.N$Freq) # shows that estimation of dissimilarity within genotypes decreases with increasing sample size.
+
+### Dissimilarity in parasitoid community composition
+ptoid.comm <- select(tree_level_interaxn_all_plants, Genotype, Platy_abund:Mymarid_abund)
+ptoid.comm.no.zero <- filter(ptoid.comm, rowSums(ptoid.comm[ ,-1]) > 0)
+table(ptoid.comm.no.zero$Genotype)
+
+ptoid.comm.sub <- filter(ptoid.comm.no.zero, Genotype %in% c("*","B","D","I","K","L","Q","S","V","W","X","Y","Z")) # retained genotypes with 3+ replicates. Note that this may restrict the analysis to genotypes that are more similar to each other...
+
+adonis(ptoid.comm[ ,-1] ~ Genotype, ptoid.comm, method = "euclidean")
+adonis(ptoid.comm.no.zero[ ,-1] ~ Genotype, ptoid.comm.no.zero, method = "horn")
+adonis(ptoid.comm.sub[ ,-1] ~ Genotype, ptoid.comm.sub, method = "horn") # marginally significant if I remove genotypes with less than 3 replicates
+
+plot(rda(ptoid.comm[,-1] ~ Genotype, ptoid.comm), display = c("sp","cn"))
+ptoid.betadisper <- betadisper(vegdist(ptoid.comm[,-1], method = "euclidean"), ptoid.comm$Genotype, bias.adjust = TRUE)
+anova(ptoid.betadisper)
+
+scatterplotMatrix(log(ptoid.comm[,-1]+1))
+
+### Which traits best predict gall community composition
+gall.comm.trait <- select(galls_traits, aSG_abund:rsLG_abund, log_size:sla_resid, C_N_imputed:flavanonOLES.PC1, water_content)
+galls <- select(gall.comm.trait, aSG_abund:rsLG_abund)
+gall.comm.trait <- filter(gall.comm.trait, rowSums(galls) > 0)
+traits <- select(gall.comm.trait, log_size:sla_resid, C_N_imputed:flavanonOLES.PC1, water_content)
+
+library(car)
+vif(gall.trait.cap)
+gall.trait.null <- capscale(gall.comm.trait[,1:5] ~ 1, traits, distance = "horn")
+gall.trait.cap <- capscale(gall.comm.trait[,1:5] ~ ., traits, distance = "horn")
+summary(gall.trait.cap)
+anova(gall.trait.cap)
+plot(gall.trait.cap)
+
+ordiR2step(gall.trait.null, scope = formula(gall.trait.cap))
+
+### rG_Tory
+rG_dom <- tree_level_interaxn_all_plants$rG_abund/tree_level_interaxn_all_plants$gall_total_abund
+plot(tree_level_interaxn_all_plants$rG_Tory ~ rG_dom)
+rG_dens <- tree_level_interaxn_all_plants$rG_abund/tree_level_interaxn_all_plants$shootEst.no18
+
+rG_bin <- glm(cbind(rG_abund, gall_total_abund - rG_abund) ~ Genotype, tree_level_interaxn_all_plants[-c(53,52),], family = "binomial")
+summary(rG_bin)
+plot(rG_bin)
+
+library(ggplot2)
+ggplot(tree_level_interaxn_all_plants, aes(x = rG_dens, y = rG_Tory)) + stat_smooth(method = "glm", family = "poisson")
+vLG_dom <- tree_level_interaxn_all_plants$vLG_abund/tree_level_interaxn_all_plants$gall_total_abund
+plot(vLG_dom ~ Genotype, tree_level_interaxn_all_plants)
+rG_Tory_glm <- glm(rG_Tory ~ rG_dom, tree_level_interaxn_all_plants, family = "poisson")
+summary(rG_Tory_glm)
+plot(rG_Tory_glm)
+
+
+### How does the density of different gall species vary among genotypes?
+
+# vLG
+plot(vLG_abund/shootEst.no18*200 ~ Genotype, tree_level_interaxn_all_plants)
+
+vLG_density_null <- MASS::glm.nb(vLG_abund ~ offset(log(shootEst.no18)), tree_level_interaxn_all_plants)
+vLG_density_glm <- MASS::glm.nb(vLG_abund ~ offset(log(shootEst.no18)) + Genotype, tree_level_interaxn_all_plants)
+summary(vLG_density_glm)
+anova(vLG_density_null, vLG_density_glm)
+# plot(vLG_density_glm)
+vLG_density_visreg <- visreg(vLG_density_glm, "Genotype", scale = "response", cond = list(shootEst.no18 = 200), ylim = c(0,40))
+
+
+# rG
+plot(rG_abund/shootEst.no18*200 ~ Genotype, tree_level_interaxn_all_plants)
+
+rG_density_null <-  MASS::glm.nb(rG_abund ~ offset(log(shootEst.no18)), tree_level_interaxn_all_plants[-121,])
+rG_density_glm <- MASS::glm.nb(rG_abund ~ offset(log(shootEst.no18)) + Genotype, tree_level_interaxn_all_plants[-121,])
+summary(rG_density_glm)
+plot(rG_density_glm)
+anova(rG_density_null, rG_density_glm)
+
+rG_density_visreg <- visreg(rG_density_glm, "Genotype", scale = "response", cond = list(shootEst.no18 = 200), ylim = c(0,120))
+
+# rsLG
+plot(rsLG_abund/shootEst.no18*200 ~ Genotype, tree_level_interaxn_all_plants)
+
+rsLG_density_null <-  MASS::glm.nb(rsLG_abund ~ offset(log(shootEst.no18)), tree_level_interaxn_all_plants)
+rsLG_density_glm <- MASS::glm.nb(rsLG_abund ~ offset(log(shootEst.no18)) + Genotype, tree_level_interaxn_all_plants)
+summary(rsLG_density_glm)
+plot(rsLG_density_glm)
+anova(rsLG_density_null, rsLG_density_glm) 
+
+rsLG_density_visreg <- visreg(rsLG_density_glm, "Genotype", scale = "response", cond = list(shootEst.no18 = 200), ylim = c(0,10))
+
+# aSG
+
+plot(aSG_abund/shootEst.no18*200 ~ Genotype, tree_level_interaxn_all_plants)
+
+aSG_density_glm <- glm(aSG_abund ~ offset(log(shootEst.no18)) + Genotype, tree_level_interaxn_all_plants, family = "poisson") 
+summary(aSG_density_glm) # no overdispersion in poisson model
+plot(aSG_density_glm)
+anova(aSG_density_glm, test = "Chi") 
+
+aSG_density_visreg <- visreg(aSG_density_glm, "Genotype", scale = "response", cond = list(shootEst.no18 = 200), ylim = c(0,15))
+
+# SG
+plot(SG_abund/shootEst.no18*200 ~ Genotype, tree_level_interaxn_all_plants)
+
+SG_density_glm <- glm(SG_abund ~ offset(log(shootEst.no18)) + Genotype, tree_level_interaxn_all_plants, family = "poisson") 
+summary(SG_density_glm) # little overdispersion in poisson model. Same results with quasipoisson. iteration for theta doesn't converge for glm.nb so its likely not necessary.
+plot(SG_density_glm)
+anova(SG_density_glm, test = "Chi") 
+
+SG_density_visreg <- visreg(SG_density_glm, "Genotype", scale = "response", cond = list(shootEst.no18 = 200), ylim = c(0,100)) # I think some of these density estimates are highly unrealistic...
+
+# using mvabund package to test variation in gall abundances simultaneously. Takes less than a minute to run the anova model.
+gall_community <- select(tree_level_interaxn_all_plants, aSG_abund:rsLG_abund)
+gall_community_mvabund <- mvabund(gall_community)
+
+gall_community_manyglm <- manyglm(gall_community_mvabund ~ offset(log(tree_level_interaxn_all_plants$shootEst.no18)) + tree_level_interaxn_all_plants$Genotype, family = "negative.binomial")
+gall_community_manyglm_anova <- anova(gall_community_manyglm, p.uni = "unadjusted") # significant multivariate community response, driven primarily by vLG, although this response is only marginally significant using adjusted P-values.
+
+# gall density summary information
+gall_density_genotype_summary_df <- tree_level_interaxn_all_plants %>%
+  group_by(Genotype) %>%
+  select(aSG_abund:rsLG_abund, shootEst.no18) %>%
+  summarise_each(funs(density200shoots = mean(./shootEst.no18*200))) %>% # note that rG's high estimate for S is driven by a single datapoint.
+  mutate(vLG_dens_modelfit = vLG_density_visreg$Genotype$y$fit,
+         rG_dens_modelfit = rG_density_visreg$Genotype$y$fit,
+         rsLG_dens_modelfit = rsLG_density_visreg$Genotype$y$fit,
+         aSG_dens_modelfit = aSG_density_visreg$Genotype$y$fit,
+         SG_dens_modelfit = SG_density_visreg$Genotype$y$fit)
+
+write.csv(gall_density_genotype_summary_df, "~/Documents/Genotype_Networks/data/gall_density_genotype_summary_df.csv")
+
+### Does total gall density vary among genotypes?
+gall_total_density_glm.nb_null <- MASS::glm.nb(gall_total_abund ~ offset(log(shootEst.no18)), tree_level_interaxn_all_plants[-c(121), ])
+gall_total_density_glm.nb <- MASS::glm.nb(gall_total_abund ~ offset(log(shootEst.no18)) + Genotype, tree_level_interaxn_all_plants[-c(121),])
+
+visreg(gall_total_density_glm.nb, "Genotype", scale = "response", cond = list(shootEst.no18 = 200))
+
+summary(gall_total_density_glm.nb)
+anova(gall_total_density_glm.nb_null, gall_total_density_glm.nb)
+plot(gall_total_density_glm.nb)
+
+### Does plant genotype affect link density?
+plot(link_abund ~ Genotype, tree_level_interaxn_all_plants)
+link_density_null <- MASS::glm.nb(link_abund ~ offset(log(shootEst.no18)), tree_level_interaxn_all_plants)
+link_density_glm <- MASS::glm.nb(link_abund ~ offset(log(shootEst.no18)) + Genotype, tree_level_interaxn_all_plants)
+summary(link_density_glm)
+anova(link_density_null, link_density_glm)
+plot(link_density_glm)
+
+visreg(link_density_glm, "Genotype", scale = "response", ylim = c(0,15), cond = list(shootEst.no18 = 200))
+
+### Does plant genotype affect link richness?
+plot(link_richness ~ Genotype, tree_level_interaxn_all_plants)
+linkrich.sumdf <- tree_level_interaxn_all_plants %>%
+  group_by(Genotype) %>%
+  summarise(mean.linkrich = mean(link_richness)) %>%
+  arrange(mean.linkrich)
+
+linkrich.df <- tree_level_interaxn_all_plants %>%
+  select(Genotype, link_richness) %>%
+  mutate(Genotype.ord = factor(Genotype, levels = linkrich.sumdf$Genotype, ordered = TRUE))
+
+ggplot(linkrich.df, aes(x = Genotype.ord, y = link_richness)) + geom_boxplot()
+
+link_rich_glm <- glm(link_richness ~ Genotype, tree_level_interaxn_all_plants, family = "poisson") # considering not using offset for richness as I should use rarefied information anyway.
+summary(link_rich_glm)
+anova(link_rich_glm, test = "Chi")
+plot(link_rich_glm)
+
+visreg(link_rich_glm, "Genotype", scale = "response", ylim = c(0,10)) # weird that the data points aren't exactly on each value...Oh wait, this is likely because it is richness density.
+
+
+# Does the proportion of parasitized galls vary among genotypes?
+test <- tree_level_interaxn_all_plants %>%
+  group_by(Genotype) %>%
+  summarise(link_abund_sum = sum(link_abund), gall_survive_abund_sum = sum(gall_survive_abund), gall_total_density_mean = mean(gall_total_densityNO18), vLG_density_mean = mean(vLG_abund/shootEst.no18))
+
+test.glm <- glm(cbind(link_abund_sum, gall_survive_abund_sum) ~ vLG_density_mean, test[-c(19,24),], family = "binomial")
+summary(test.glm)
+plot(test.glm)
+visreg(test.glm, scale = "response")
+
+
+prop_parasitized_glm <- glm(cbind(link_abund, gall_survive_abund) ~ Genotype, filter(tree_level_interaxn_all_plants, Genotype != "U"), family = "binomial") # removed Genotype "U" because there was never any parasitoid attack...
+summary(prop_parasitized_glm)
+visreg(prop_parasitized_glm, "Genotype", scale = "response") # note that the points on the line of each "mean" are not real!!!!! Should figure out how to remove them if I want to plot this data.
+
+anova(prop_parasitized_glm, test = "Chi")
+plot(prop_parasitized_glm)
+
+# Does plant genotype affect vLG density?
+plot(vLG_abund/shootEst.no18 ~ Genotype, tree_level_interaxn_all_plants)
+plot(vLG_abund ~ Genotype, tree_level_interaxn_all_plants)
+vLG_density_null <- MASS::glm.nb(vLG_abund ~ offset(log(shootEst.no18)), tree_level_interaxn_all_plants)
+vLG_density_glm <- MASS::glm.nb(vLG_abund ~ offset(log(shootEst.no18)) + Genotype, tree_level_interaxn_all_plants)
+summary(vLG_density_glm)
+anova(vLG_density_null, vLG_density_glm)
+plot(vLG_density_glm)
+test <- visreg(vLG_density_glm, "Genotype", scale = "response", ylim = c(0,40), cond = list(shootEst.no18 = 200))
+
+round(test$Genotype$y$fit,1)
+
+vLG_dataset <- tree_level_interaxn_all_plants %>%
+  group_by(Genotype) %>%
+  summarise(vLG_ptoid_count = sum(vLG_parasitized), vLG_surv_count = sum(vLG_vLG.pupa)) %>%
+  mutate(vLG_genotype_mean_density = test$Genotype$y$fit)
+
+vLG_geno.ptized = glm(cbind(vLG_ptoid_count, vLG_surv_count) ~ vLG_genotype_mean_density, vLG_dataset, family = "binomial")
+summary(vLG_geno.ptized)
+visreg(vLG_geno.ptized, scale = "response")
+anova(vLG_geno.ptized, test = "Chi") # cool, looks like parasitoid attack rate increases with increasing gall density. Suggesting density dependence.
+plot(vLG_geno.ptized)
+

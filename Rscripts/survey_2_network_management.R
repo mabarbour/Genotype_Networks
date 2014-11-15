@@ -13,16 +13,26 @@ library(dplyr)
 
 #### Data management
 
-# upload gall network data (survey #2)
-Gall_Network_Data_Survey_2_2012 <- read.csv("~/Documents/Genotype_Networks/data/Gall_Network_Data_Survey_2_raw.csv", skip=1, stringsAsFactors = FALSE, strip.white = TRUE)
-Gall_Network_Data_Survey_2_2012 <- tbl_df(Gall_Network_Data_Survey_2_2012)
-Gall_Network_Data_Survey_2_2012[which(Gall_Network_Data_Survey_2_2012$plant.position == 49.8),"plant.position"] <- rep(167, 7) # 49.8 label came from the stem diameter for this plant, but we also knew it was genotype "O". I also noticed I was missing plant 167 from the dataset and plant was Genotype "O" and had a stem diameter of 49.8, therefore I input 167 as the plant position.
+# Shoot count estimates as well as plant positions where zero galls were collected
+shoot.countEst <- read.csv("~/Documents/Genotype_Networks/data/survey_2_stem_diams_shootEsts.csv")
+shoot.count_df <- tbl_df(shoot.countEst)
+shoot.count_df <- shoot.count_df %>%
+  select(plant.position = Plant.Position, Galls.found, shootEst.all, shootEst.no18)
 
 # upload plant position data with details on plant identity to eventually merge with gall network data
 plant.position.info <- read.csv("~/Documents/Genotype_Willow_Community/datasets_&_Rscripts/Willow Garden Positions.csv")
 plant.position.info <- tbl_df(plant.position.info)
 plant.position.info <- plant.position.info %>%
   select(Genotype, Gender, Row = Row.., plant.position = Plant.Position)
+
+# merge plant position info with shoot estimate data
+plant.info_df <- left_join(shoot.count_df, plant.position.info) %>%
+  select(Gender, Genotype, Row, plant.position:shootEst.no18)
+
+# upload gall network data (survey #2)
+Gall_Network_Data_Survey_2_2012 <- read.csv("~/Documents/Genotype_Networks/data/Gall_Network_Data_Survey_2_raw.csv", skip=1, stringsAsFactors = FALSE, strip.white = TRUE)
+Gall_Network_Data_Survey_2_2012 <- tbl_df(Gall_Network_Data_Survey_2_2012)
+Gall_Network_Data_Survey_2_2012[which(Gall_Network_Data_Survey_2_2012$plant.position == 49.8),"plant.position"] <- rep(167, 7) # 49.8 label came from the stem diameter for this plant, but we also knew it was genotype "O". I also noticed I was missing plant 167 from the dataset and plant was Genotype "O" and had a stem diameter of 49.8, therefore I input 167 as the plant position.
 
 # replaces all NAs in gall content matrix with zeros.  These are biologically meaningful zeros and do not represent missing data.
 g.contents_matrix <- as.matrix(select(Gall_Network_Data_Survey_2_2012, vLG.pupa:exit.hole))
@@ -34,8 +44,8 @@ gall_net <- cbind.data.frame(Gall_Network_Data_Survey_2_2012[ ,c("survey","plant
 gall_net <- tbl_df(gall_net)
 
 # merge the gall network data and plant position information
-gall_net <- left_join(gall_net, plant.position.info)
-gall_net <- select(gall_net, survey, Gender, Genotype, Row, plant.position:exit.hole) # reorder
+#gall_net <- left_join(gall_net, plant.position.info)
+#gall_net <- select(gall_net, survey, Gender, Genotype, Row, plant.position:exit.hole) # reorder
 
 #### Examine data for errors and make appropriate corrections. Since I never found any "twG" larva, I'm ommitting this as a possible gall species (although it may related in some way to aSG).
 
@@ -178,12 +188,19 @@ gall_net <- gall_net %>%
 
 colSums(select(gall_net, vLG.pupa:exit.hole)) # quick glance of the abundance of different categories again
 
+dim(shoot.count_df)[1] - length(table(gall_net$plant.position)) - dim(filter(shoot.count_df, Galls.found == 0))[1] # couldn't find galls associated with 7 of the trees from the original survey...
+shoot.count.df
+filter(shoot.count_df, Galls.found == 0)
+
 # melt the data frame for easier management
 gall_net_melt <- gall_net %>%
-  select(Gender:plant.position, gall.id:gall.sp, g.height:exit.hole) %>%
-  melt(id.vars = c("Gender","Genotype","Row","plant.position", "gall.id", "gall.id.nest", "g.id.unk", "g.height", "g.width", "g.3meas", "point.count", "exit.size", "gall.sp"), variable_name = "gall_contents")
+  select(plant.position, gall.id:gall.sp, g.height:exit.hole) %>%
+  melt(id.vars = c("plant.position", "gall.id", "gall.id.nest", "g.id.unk", "g.height", "g.width", "g.3meas", "point.count", "exit.size", "gall.sp"), variable_name = "gall_contents") #"Gender","Genotype","Row",
 gall_net_melt <- tbl_df(gall_net_melt)
-gall_net_melt <- filter(gall_net_melt, value > 0) # remove unecessary data. Note that this has more rows than the gall.net data which is likely because there were some galls with multiple types of contents
+gall_net_melt <- filter(gall_net_melt, value > 0 & plant.position < 9999 & plant.position != 310) # remove unecessary data. Note that this has more rows than the gall.net data which is likely because there were some galls with multiple types of contents. Also dropped the unidentified plant position (#9999). Also dropped plant position 310 because I found out that it was actually a duplicate of 510 (which was already in the data set), plus this tree was never surveyed...
+
+cbind(names(table(gall_net_melt$plant.position)), names(table(gall_net$plant.position))) # looks like plant.position 521 was the only plant that had no "values" associated with it after removing selecting the subset of columns. Used to have an rsLG-moth.ad3 connection, but I removed these from the dataset. However, I'm going to make it so this one had no galls associated with it to be consistent with the treatment of other interactions.
+
 
 # identify duplicates for gall id. Note that many of these are okay, since they are often associated with vLG which may contain multiple larva. Some of the moth related ones may end up being thrown out too. I need to make sure all of the rG ones are okay.
 id.duplicates <- gall_net_melt %>%
@@ -191,11 +208,33 @@ id.duplicates <- gall_net_melt %>%
   select(plant.position, gall.id, gall.id.nest, point.count, g.id.unk, gall.sp, gall_contents, value)
 
 duplicate_df = gall_net_melt[gall_net_melt$gall.id.nest %in% id.duplicates$gall.id.nest, ]
-write.csv(sort_df(duplicate_df, "gall.id.nest"), "~/Documents/Genotype_Networks/data/gall_network_duplicates_to_check.csv") # all duplicates seem okay, because there are often cases where multiple specimens may come from the same galls. I have double check all of these.
+write.csv(sort_df(duplicate_df, "gall.id.nest"), "~/Documents/Genotype_Networks/data/gall_network_duplicates_to_check.csv") # all duplicates seem okay, because there are often cases where multiple specimens may come from the same galls. I have double checked all of these.
+
+### Add plant position where no galls were collected, even though the tree was surveyed for galls.
+plant.positions.no.galls <- shoot.count_df %>%
+  filter(Galls.found == 0 & plant.position != 77) %>% # removed 77, because we do have galls linked to this, although it is a bit of a mystery...
+  select(plant.position)
+no_gall_df <- data.frame(plant.position = c(plant.positions.no.galls$plant.position,521),
+                         gall.id = rep("NA", length(plant.positions.no.galls$plant.position)+1),
+                         gall.id.nest = rep("NA", length(plant.positions.no.galls$plant.position)+1),
+                         g.id.unk = rep("NA", length(plant.positions.no.galls$plant.position)+1),
+                         g.height = rep("NA", length(plant.positions.no.galls$plant.position)+1),
+                         g.width = rep("NA", length(plant.positions.no.galls$plant.position)+1),
+                         g.3meas = rep("NA", length(plant.positions.no.galls$plant.position)+1),
+                         point.count = rep("NA", length(plant.positions.no.galls$plant.position)+1),
+                         exit.size = rep("NA", length(plant.positions.no.galls$plant.position)+1),
+                         gall.sp = rep("NA", length(plant.positions.no.galls$plant.position)+1),
+                         gall_contents = rep("NA", length(plant.positions.no.galls$plant.position)+1),
+                         value = rep("NA", length(plant.positions.no.galls$plant.position)+1))
+
+gall_net_melt_with_no_gall_data <- rbind(gall_net_melt, no_gall_df)
+
+
+### Merge in data with estimated shoot counts and add Genotype, Gender, and row information
+gall_net_melt_plant_info <- left_join(gall_net_melt_with_no_gall_data, plant.info_df) %>%
+  select(Gender:shootEst.no18, plant.position:value)
 
 #### Data has been checked and appears to be error free.
 
-write.csv(gall_net_melt,"~/Documents/Genotype_Networks/data/gall_network_data.csv")
+write.csv(gall_net_melt_plant_info,"~/Documents/Genotype_Networks/data/gall_network_data.csv")
 
-### Plant positions that were surveyed but had ZERO galls collected. Double check with written notes.
-# 494, 402? (notes say it was collected from survey 1, but apparently none from survey 2.), possibly 77

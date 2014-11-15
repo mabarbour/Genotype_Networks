@@ -1,50 +1,52 @@
-# ideas, add two separate food web matrices  that I want to "highlight"
 
-# load data
-genotype_gall_parasitoid_network <- read.csv('~/Documents/Genotype_Networks/data/genotype_gall_parasitoid_network_data.csv')
-rownames(genotype_gall_parasitoid_network) <- genotype_gall_parasitoid_network$X 
-genotype_gall_parasitoid_network <- select(genotype_gall_parasitoid_network, -X)
-
-gall_ptoid <- genotype_gall_parasitoid_network
-
-rowSums(select(gall_ptoid, "vLG_Platy"))
-grab.geno <- which(rownames(gall_ptoid) %in% c("B","D","X"))
-grab.interaction <- which(colnames(gall_ptoid) %in% "vLG_Platy")
-vLG_Platy_BDX <- sum(gall_ptoid[grab.geno, grab.interaction])
-interaxns_vLG_Platy_sub <- interaxns_focus_density
-interaxns_vLG_Platy_sub["vLG","Platy"] <- vLG_Platy_BDX
-interaxns_vLG_Platy_sub[-5,] <- 0
-interaxns_vLG_Platy_sub[,-7] <- 0
-
-debug(plotweb2_highlights)
-plotweb2_highlights(genotype_gall_network_density, interaxns_focus_density, low.abun.col2 = "white", highlight.web = low.web.high, highlight.web.high = interaxns_vLG_Platy_sub, node.highlight = c("vLG","X","B","D","Platy"))
-
-grab.prey <- which(rownames(genotype_gall_network_density) %in% c("B","D","X"))
-grab.pred <- which(colnames(genotype_gall_network_density) %in% "vLG")
-
-low.web.high <- genotype_gall_network_density
-low.web.high[-grab.prey, ] <- 0
-low.web.high[ ,-grab.pred] <- 0
-
-
-plotweb2_highlights <- function (web, web2, method = "cca", empty = FALSE, labsize = 1, 
-                                 ybig = 1, y_width = 0.1, spacing = 0.05, arrow = "no", col.interaction = "grey80", 
-                                 col.pred = "grey10", col.prey = "grey10",
+plotweb2_highlights <- function (web, 
+                                 web2, 
+                                 highlight.web = NULL,
+                                 highlight.web.high = NULL,
+                                 method = "cca", 
+                                 empty = FALSE, # when FALSE, method changes to "normal"
+                                 labsize = 1, 
+                                 ybig = 1, 
+                                 y_width = 0.1,
+                                 y_width_scale = 0,
+                                 spacing = 0.05, 
+                                 arrow = "no", 
+                                 col.interaction = "grey80", 
+                                 bord.col.interaction = "black",
+                                 col.pred = "grey10", 
+                                 col.prey = "grey10",
                                  lab.space = 1, 
-                                 lablength = NULL, sequence = NULL, low.abun = NULL, low.abun.col = "green", 
-                                 high.abun = NULL, high.abun.col = "red", method2 = "cca", 
-                                 empty2 = TRUE, spacing2 = 0.05, arrow2 = "no", col.interaction2 = "grey80", 
-                                 col.pred2 = "grey30", col.prey2 = "grey20", lablength2 = NULL, 
-                                 sequence.pred2 = NULL, low.abun2 = NULL, low.abun.col2 = "green", 
-                                 high.abun2 = NULL, high.abun.col2 = "red",
+                                 lablength = NULL, # buggy if not set to null
+                                 sequence = NULL, 
+                                 low.abun = NULL, 
+                                 low.abun.col = "green", 
+                                 high.abun = NULL, 
+                                 high.abun.col = "red", 
+                                 method2 = "cca", 
+                                 empty2 = TRUE, 
+                                 spacing2 = 0.05, 
+                                 arrow2 = "no", 
+                                 col.interaction2 = "grey80", 
+                                 bord.col.interaction2 = "black",
+                                 col.pred2 = "grey10", 
+                                 col.prey2 = NA, 
+                                 lablength2 = NULL, # buggy if not set to null
+                                 sequence.pred2 = NULL, 
+                                 low.abun2 = NULL, 
+                                 low.abun.col2 = "white", 
+                                 bord.low.abun.col2 = "black",
+                                 high.abun2 = NULL,
+                                 high.abun.col2 = "white",
                                  col.interaction.highlight = "red",
-                                 highlight.web,
-                                 highlight.web.high,
-                                 bord.col.highlight = "red",
+                                 bord.col.highlight = "black",
                                  bord.col = "black",
+                                 bord.col.interaction.highlight = "black", 
+                                 bord.size.interaction.highlight = 1,
                                  node.highlight = "",
                                  bord.size = 1,
-                                 bord.size.highlight = 5) 
+                                 bord.size.highlight = 5,
+                                 font.type = 3,
+                                 text = FALSE) 
 {
   require(vegan)
   if (empty) 
@@ -110,19 +112,29 @@ plotweb2_highlights <- function (web, web2, method = "cca", empty = FALSE, labsi
   if (!is.null(lablength)) 
     rownames(web) <- substr(rownames(web), 1, lablength)
   par(mai = c(0.2, 0.2, 0.2, 0.2))
+  #browser()
   pred_spacing = (n.prey - 1)/(n.pred - 1)
   prey_spacing = (n.pred - 1)/(n.prey - 1)
   pred_spacing <- pred_spacing * spacing
   prey_spacing <- prey_spacing * spacing
-  if (n.pred > n.prey) 
+  #if (n.pred > n.prey & n.prey == 1){ # added this if statment to permit plots with a single prey species
+   # prey_spacing <- 0 
+  #}
+  if (n.pred > n.prey) # added this to be distinct from above statement
     prey_spacing <- pred_spacing * (n.pred - 1)/(n.prey - 
                                                    1)
   else pred_spacing <- prey_spacing * (n.prey - 1)/(n.pred - 
                                                       1)
+  if (n.pred == 1)
+    pred_spacing <- 1 #* spacing
+  if (n.prey == 1)
+    prey_spacing <- 1 #* spacing
+    pred_spacing <- spacing # adds some space in between predator species so they can be distinguished.
   if (!is.null(low.abun)) 
     pred_spacing <- pred_spacing + sum(difff)/n.pred
   if (!is.null(high.abun)) 
     prey_spacing <- prey_spacing + sum(diffh)/n.prey
+  #browser()
   wleft = 0
   wright = (max(n.pred, n.prey)) * min(prey_spacing, pred_spacing) + 
     1 + max(sum(diffh), sum(difff))
@@ -130,6 +142,7 @@ plotweb2_highlights <- function (web, web2, method = "cca", empty = FALSE, labsi
   wdown <- 0.4 - y_width - lab.space * 0.05
   plot(0, type = "n", xlim = range(wleft, wright), ylim = range(wdown/ybig, 
                                                                 wup * ybig), axes = FALSE, xlab = "", ylab = "")
+
   pred_x = 0
   hoffset <- 0
   links <- 0
@@ -156,10 +169,13 @@ plotweb2_highlights <- function (web, web2, method = "cca", empty = FALSE, labsi
       rechts <- pred_x + pred_prop[i]/2 + breite/2
       hoffset <- 0
     }
-    text(pred_x + pred_prop[i]/2, pred_y + y_width + hoehe + 
-           hoffset, colnames(web)[i], cex = 0.6 * labsize, offset = 0)
-    pred_x <- pred_x + pred_prop[i] + pred_spacing
+    if(text == TRUE){
+      text(pred_x + pred_prop[i]/2, pred_y + y_width + hoehe + 
+             hoffset, colnames(web)[i], cex = 0.6 * labsize, offset = 0, font = font.type)
+    }
+      pred_x <- pred_x + pred_prop[i] + pred_spacing
   }
+
   prey_x <- 0
   links <- 0
   rechts <- 0
@@ -186,10 +202,13 @@ plotweb2_highlights <- function (web, web2, method = "cca", empty = FALSE, labsi
       rechts <- prey_x + prey_prop[i]/2 + breite/2
       hoffset <- hoehe
     }
+    if(text == TRUE){
     text(prey_x + prey_prop[i]/2, prey_y - y_width - hoffset, 
-         rownames(web)[i], cex = 0.6 * labsize, offset = 0)
+         rownames(web)[i], cex = 0.6 * labsize, offset = 0, font = font.type)
+    }
     prey_x <- prey_x + prey_prop[i] + prey_spacing
   }
+
   pred_x <- 0
   zwischenweb <- web
   XYcoords1 <- matrix(ncol = 2, nrow = length(zwischenweb))
@@ -198,9 +217,9 @@ plotweb2_highlights <- function (web, web2, method = "cca", empty = FALSE, labsi
                            arr.ind = TRUE)[1, ]
     zwischenweb[XYcoords1[i, 1], XYcoords1[i, 2]] <- -1
   }
-  y1 <- pred_y - y_width
+  y1 <- pred_y - y_width - y_width_scale
   y2 <- y1
-  y3 <- prey_y + y_width
+  y3 <- prey_y + y_width + y_width_scale
   y4 <- y3
   for (p in 1:sum(web > 0)) {
     i <- XYcoords1[p, 1]
@@ -228,9 +247,10 @@ plotweb2_highlights <- function (web, web2, method = "cca", empty = FALSE, labsi
       x4 <- (x3 + x4)/2
       x3 <- x4
     }
-    polygon(c(x1, x2, x4, x3), c(y1, y2, y4, y3), col = col.interaction)
+    polygon(c(x1, x2, x4, x3), c(y1, y2, y4, y3), col = col.interaction, border = bord.col.interaction)
   }
   # attempt to highlight specific interactions in lower plots
+  if(!is.null(highlight.web)){
   pred_x <- 0
   zwischenweb <- highlight.web
   XYcoords1 <- matrix(ncol = 2, nrow = length(zwischenweb))
@@ -239,9 +259,9 @@ plotweb2_highlights <- function (web, web2, method = "cca", empty = FALSE, labsi
                             arr.ind = TRUE)[1, ]
     zwischenweb[XYcoords1[i, 1], XYcoords1[i, 2]] <- -1
   }
-  y1 <- pred_y - y_width
+  y1 <- pred_y - y_width - y_width_scale
   y2 <- y1
-  y3 <- prey_y + y_width
+  y3 <- prey_y + y_width + y_width_scale
   y4 <- y3
   for (p in 1:sum(highlight.web > 0)) { # web
     i <- XYcoords1[p, 1]
@@ -270,9 +290,43 @@ plotweb2_highlights <- function (web, web2, method = "cca", empty = FALSE, labsi
       x4 <- (x3 + x4)/2
       x3 <- x4
     }
-    polygon(c(x1, x2, x4, x3), c(y1, y2, y4, y3), col = col.interaction.highlight)
+    polygon(c(x1, x2, x4, x3), c(y1, y2, y4, y3), col = col.interaction.highlight, border = bord.col.interaction.highlight, lwd = bord.size.interaction.highlight)
   }
-  
+  }
+  # replot base for clear borders
+  prey_x <- 0
+  links <- 0
+  rechts <- 0
+  hoehe <- strheight(rownames(web)[1], cex = 0.6)
+  hoffset <- hoehe
+  for (i in 1:n.prey) {
+    # attempt to add prey border highlight
+    if(names(prey_prop[i]) %in% node.highlight)
+      bord.col.prey = c(bord.col.highlight, bord.size.highlight)
+    else {
+      bord.col.prey = c(bord.col, bord.size)
+    }
+    rect(prey_x, prey_y - y_width, prey_x + prey_prop[i], 
+         prey_y + y_width, col = col.prey, border = bord.col.prey[1], lwd = bord.col.prey[2])
+    if (!is.null(low.abun)) {
+      rect(prey_x + prey_prop[i] - difff[i], prey_y - y_width, 
+           prey_x + prey_prop[i], prey_y + y_width, col = low.abun.col)
+    }
+    breite <- strwidth(rownames(web)[i], cex = 0.6 * labsize)
+    links <- prey_x + prey_prop[i]/2 - breite/2
+    if (links < rechts && i > 1) 
+      hoffset = hoffset + hoehe
+    else {
+      rechts <- prey_x + prey_prop[i]/2 + breite/2
+      hoffset <- hoehe
+    }
+    if(text == TRUE){
+    text(prey_x + prey_prop[i]/2, prey_y - y_width - hoffset, 
+         rownames(web)[i], cex = 0.6 * labsize, offset = 0, font = font.type)
+    }
+    prey_x <- prey_x + prey_prop[i] + prey_spacing
+  }
+  #browser() # setting lablength different from null screws up the function.
   #
   web2 <- as.matrix(web2)
   for (i in 1:dim(web)[2]) {
@@ -329,7 +383,11 @@ plotweb2_highlights <- function (web, web2, method = "cca", empty = FALSE, labsi
   if (!is.null(lablength2)) 
     rownames(web2) <- substr(rownames(web2), 1, lablength2)
   prey_spacing = pred_spacing
-  pred_spacing = (n.prey - 1)/(n.pred - 1)
+  if(pred_spacing == 0) # trying ifelse statement to avoid overplotting predators outside the plot space.
+    pred_spacing = 0
+  else{
+    pred_spacing = (n.prey - 1)/(n.pred - 1)
+  }
   pred_spacing <- pred_spacing * spacing2
   if (n.pred < n.prey) 
     pred_spacing <- prey_spacing * (n.prey - 1)/(n.pred - 
@@ -362,9 +420,11 @@ plotweb2_highlights <- function (web, web2, method = "cca", empty = FALSE, labsi
       rechts <- pred_x + pred_prop[i]/2 + breite/2
       hoffset <- 0
     }
+    if(text == TRUE){
     text(pred_x + pred_prop[i]/2, pred_y + y_width + hoehe + 
            hoffset, colnames(web2)[i], cex = 0.6 * labsize, 
-         offset = 0)
+         offset = 0, font = font.type)
+    }
     pred_x <- pred_x + pred_prop[i] + pred_spacing
   }
   prey_x <- 0
@@ -373,12 +433,20 @@ plotweb2_highlights <- function (web, web2, method = "cca", empty = FALSE, labsi
   hoehe <- strheight(rownames(web2)[1], cex = 0.6)
   hoffset <- hoehe
   for (i in 1:n.prey) {
-    rect(prey_x, prey_y - y_width, prey_x + prey_prop[i], 
-         prey_y + y_width, col = col.prey2)
+    # attempt to add prey border highlight
+    if(names(prey_prop[i]) %in% node.highlight)
+      bord.col.prey = c(bord.col.highlight, bord.size.highlight)
+    else {
+      bord.col.prey = c(bord.col, bord.size)
+    }
     if (!is.null(low.abun2)) {
       rect(prey_x + prey_prop[i] - difff[i], prey_y, prey_x + 
-             prey_prop[i], prey_y + y_width, col = low.abun.col2)
-    }
+             prey_prop[i], prey_y + y_width, col = low.abun.col2, border = bord.low.abun.col2 )
+    } 
+    
+    rect(prey_x, prey_y - y_width, prey_x + prey_prop[i], 
+         prey_y + y_width, col = col.prey2, border = bord.col.prey[1], lwd = bord.col.prey[2])
+
     breite <- strwidth(rownames(web)[i], cex = 0.6 * labsize)
     links <- prey_x + prey_prop[i]/2 - breite/2
     if (links < rechts && i > 1) 
@@ -387,8 +455,10 @@ plotweb2_highlights <- function (web, web2, method = "cca", empty = FALSE, labsi
       rechts <- prey_x + prey_prop[i]/2 + breite/2
       hoffset <- hoehe
     }
+    if(text == TRUE){
     text(prey_x + prey_prop[i]/2, prey_y - y_width - hoffset, 
-         rownames(web2)[i], cex = 0.6 * labsize, offset = 0)
+         rownames(web2)[i], cex = 0.6 * labsize, offset = 0, font = font.type)
+    }
     prey_x <- prey_x + prey_prop[i] + prey_spacing
   }
   pred_x <- 0
@@ -399,9 +469,9 @@ plotweb2_highlights <- function (web, web2, method = "cca", empty = FALSE, labsi
                            arr.ind = TRUE)[1, ]
     zwischenweb[XYcoords2[i, 1], XYcoords2[i, 2]] <- -1
   }
-  y1 <- pred_y - y_width
+  y1 <- pred_y - y_width - y_width_scale
   y2 <- y1
-  y3 <- prey_y + y_width
+  y3 <- prey_y + y_width + y_width_scale
   y4 <- y3
   if (sum(web2 > 0)) {
     for (p in 1:sum(web2 > 0)) {
@@ -430,13 +500,15 @@ plotweb2_highlights <- function (web, web2, method = "cca", empty = FALSE, labsi
         x4 <- (x3 + x4)/2
         x3 <- x4
       }
-      polygon(c(x1, x2, x4, x3), c(y1, y2, y4, y3), col = col.interaction2)
+      polygon(c(x1, x2, x4, x3), c(y1, y2, y4, y3), col = col.interaction2, border = bord.col.interaction2)
     }
   }
-
+  #browser()
   # code below attempts to integrate interaction strengths of a third matrix
+  if(!is.null(highlight.web.high)){
   pred_x <- 0
-  zwischenweb <- web2
+  #zwischenweb <- web2
+  zwischenweb <- highlight.web.high
   web3 <- highlight.web.high
   XYcoords2 <- matrix(ncol = 2, nrow = length(zwischenweb))
   for (i in 1:length(zwischenweb)) {
@@ -444,12 +516,12 @@ plotweb2_highlights <- function (web, web2, method = "cca", empty = FALSE, labsi
                             arr.ind = TRUE)[1, ]
     zwischenweb[XYcoords2[i, 1], XYcoords2[i, 2]] <- -1
   }
-  y1 <- pred_y - y_width
+  y1 <- pred_y - y_width - y_width_scale
   y2 <- y1
-  y3 <- prey_y + y_width
+  y3 <- prey_y + y_width + y_width_scale
   y4 <- y3
-  if (sum(web3 > 0)) { # web2
-    for (p in 1:sum(web3 > 0)) { #web2
+  if (sum(web3 > 0)) { # web2 # web3
+    for (p in 1:sum(web3 > 0)) { #web2 # web3
       i <- XYcoords2[p, 1]
       j <- XYcoords2[p, 2]
       if (j == 1 & i == 1) 
@@ -476,87 +548,65 @@ plotweb2_highlights <- function (web, web2, method = "cca", empty = FALSE, labsi
         x4 <- (x3 + x4)/2
         x3 <- x4
       }
-      polygon(c(x1, x2, x4, x3), c(y1, y2, y4, y3), col = col.interaction.highlight)
+      polygon(c(x1, x2, x4, x3), c(y1, y2, y4, y3), col = col.interaction.highlight, border = bord.col.interaction.highlight, lwd = bord.size.interaction.highlight)
     }
   }
-  # testing for highlighting central border. repeat of code
-  websum <- sum(web)
-  difff <- diffh <- 0
-  if (!is.null(low.abun)) {
-    lowfreq = rowSums(web)
-    dummy <- lowfreq
-    for (i in 1:length(low.abun)) {
-      ind <- which(names(low.abun)[i] == names(dummy))
-      lowfreq[ind] <- lowfreq[ind] + low.abun[i]
-    }
-    difff = (lowfreq - rowSums(web))/websum
   }
-  if (!is.null(high.abun)) {
-    highfreq = colSums(web)
-    dummy <- highfreq
-    for (i in 1:length(high.abun)) {
-      ind <- which(names(high.abun)[i] == names(dummy))
-      highfreq[ind] <- highfreq[ind] + high.abun[i]
-    }
-    diffh = (highfreq - colSums(web))/websum
-  }
-  if (is.null(high.abun)) 
-    pred_prop <- colSums(web)/websum
-  else pred_prop <- highfreq/websum
-  if (is.null(low.abun)) 
-    prey_prop <- rowSums(web)/websum
-  else prey_prop <- lowfreq/websum
-  n.pred <- length(pred_prop)
-  n.prey <- length(prey_prop)
-  pred_x <- 0
-  pred_xold <- -1
-  pred_versatz <- 0
-  pred_y <- 1.5
+  # replot middle for clear border
   prey_x <- 0
-  prey_xold <- -1
-  prey_versatz <- 0
-  prey_y <- 0.5
-  if (length(colnames(web)) == 0) 
-    colnames(web) <- colnames(web, do.NULL = FALSE)
-  if (length(rownames(web)) == 0) 
-    rownames(web) <- rownames(web, do.NULL = FALSE)
-  if (!is.null(lablength)) 
-    colnames(web) <- substr(colnames(web), 1, lablength)
-  if (!is.null(lablength)) 
-    rownames(web) <- substr(rownames(web), 1, lablength)
-  par(mai = c(0.2, 0.2, 0.2, 0.2))
-  pred_spacing = (n.prey - 1)/(n.pred - 1)
-  prey_spacing = (n.pred - 1)/(n.prey - 1)
-  pred_spacing <- pred_spacing * spacing
-  prey_spacing <- prey_spacing * spacing
-  if (n.pred > n.prey) 
-    prey_spacing <- pred_spacing * (n.pred - 1)/(n.prey - 
-                                                   1)
-  else pred_spacing <- prey_spacing * (n.prey - 1)/(n.pred - 
-                                                      1)
-  if (!is.null(low.abun)) 
-    pred_spacing <- pred_spacing + sum(difff)/n.pred
-  if (!is.null(high.abun)) 
-  # removed section of code because it redid a blank plot
+  links <- 0
+  rechts <- 0
+  hoehe <- strheight(rownames(web2)[1], cex = 0.6)
+  hoffset <- hoehe
+  for (i in 1:n.prey) {
+    # attempt to add prey border highlight
+    if(names(prey_prop[i]) %in% node.highlight)
+      bord.col.prey = c(bord.col.highlight, bord.size.highlight)
+    else {
+      bord.col.prey = c(bord.col, bord.size)
+    }
+    if (!is.null(low.abun2)) {
+      rect(prey_x + prey_prop[i] - difff[i], prey_y, prey_x + 
+             prey_prop[i], prey_y + y_width, col = low.abun.col2, border = bord.low.abun.col2 )
+    } 
+    
+    rect(prey_x, prey_y - y_width, prey_x + prey_prop[i], 
+         prey_y + y_width, col = col.prey2, border = bord.col.prey[1], lwd = bord.col.prey[2])
+    
+    breite <- strwidth(rownames(web)[i], cex = 0.6 * labsize)
+    links <- prey_x + prey_prop[i]/2 - breite/2
+    if (links < rechts && i > 1) 
+      hoffset = hoffset + hoehe
+    else {
+      rechts <- prey_x + prey_prop[i]/2 + breite/2
+      hoffset <- hoehe
+    }
+    if(text == TRUE){
+    text(prey_x + prey_prop[i]/2, prey_y - y_width - hoffset, 
+         rownames(web2)[i], cex = 0.6 * labsize, offset = 0, font = font.type)
+    }
+    prey_x <- prey_x + prey_prop[i] + prey_spacing
+  }
+  # replot top for clear borders
   pred_x = 0
   hoffset <- 0
   links <- 0
   rechts <- 0
-  hoehe <- strheight(colnames(web)[1], cex = 0.6)
+  hoehe <- strheight(colnames(web2)[1], cex = 0.6)
   for (i in 1:n.pred) {
-    # attempt to add prey border highlight
+    # attempt to add predator border highlight
     if(names(pred_prop[i]) %in% node.highlight)
-      bord.col.mid = c(bord.col.highlight, bord.size.highlight)
+      bord.col.pred = c(bord.col.highlight, bord.size.highlight)
     else {
-      bord.col.mid = c(bord.col, bord.size)
+      bord.col.pred = c(bord.col, bord.size)
     }
     rect(pred_x, pred_y - y_width, pred_x + pred_prop[i], 
-         pred_y + y_width, col = col.pred, border = bord.col.mid[1], lwd = bord.col.mid[2])
-    if (!is.null(high.abun)) {
+         pred_y + y_width, col = col.pred2, border = bord.col.pred[1], lwd = bord.col.pred[2])
+    if (!is.null(high.abun2)) {
       rect(pred_x + pred_prop[i] - diffh[i], pred_y - y_width, 
-           pred_x + pred_prop[i], pred_y + y_width, col = high.abun.col, border = bord.col.mid[1], lwd = bord.col.mid[2])
+           pred_x + pred_prop[i], pred_y + y_width, col = high.abun.col2)
     }
-    breite <- strwidth(colnames(web)[i], cex = 0.6 * labsize)
+    breite <- strwidth(colnames(web2)[i], cex = 0.6 * labsize)
     links <- pred_x + pred_prop[i]/2 - breite/2
     if (links < rechts && i > 1) 
       hoffset = hoffset + hoehe
@@ -564,8 +614,11 @@ plotweb2_highlights <- function (web, web2, method = "cca", empty = FALSE, labsi
       rechts <- pred_x + pred_prop[i]/2 + breite/2
       hoffset <- 0
     }
+    if(text == TRUE){
     text(pred_x + pred_prop[i]/2, pred_y + y_width + hoehe + 
-           hoffset, colnames(web)[i], cex = 0.6 * labsize, offset = 0)
+           hoffset, colnames(web2)[i], cex = 0.6 * labsize, 
+         offset = 0, font = font.type)
+    }
     pred_x <- pred_x + pred_prop[i] + pred_spacing
   }
 }
