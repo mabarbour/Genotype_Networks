@@ -81,9 +81,6 @@ results_WNODF <- data.frame(null.models = null.models,
 
 write.csv(results_WNODF, "~/Documents/Genotype_Networks/data/results_WNODF_genotype_gall_parasitoid_network.csv")
 
-t <- computeModules(t(genotype_gall_parasitoid_network))
-tt <- czvalues(t)
-plot(tt[[1]], tt[[2]], xlab = "c", ylab = "z")
 
 # Modularity: QuaBiMo algorithm (Dormann & Strauss 2014, Methods in Ecology and Evolution)
 # start time 6:50 pm on Friday, July 18, 2014
@@ -101,7 +98,6 @@ t2 <- null_model_analysis_WNODF_QuaBiMo(web = select(genotype_gall_parasitoid_ne
 
 best_partitions <- best_QuaBiMo(genotype_gall_parasitoid_network, QuaBiMo_reps = 100) # 0.327593
 plotModuleWeb(best_partitions$best_module_info[[1]])
-czvalues(best_partitions$best_module_info[[1]], weighted = TRUE)
 QuaBiMo_Q = best_partitions$best_observed_value
 N_null_webs = 1000
 
@@ -130,6 +126,30 @@ results_QuaBiMo <- data.frame(null.models = null.models,
 
 write.csv(results_QuaBiMo, "~/Documents/Genotype_Networks/data/results_QuaBiMo_genotype_gall_parasitoid_network.csv")
 
+
+### Examine c-z values of genotype-gall-parasitoid networks
+
+# roles of herbivore-parasitoid nodes
+cz.upper <- czvalues(best_partitions$best_module_info[[1]], weighted = TRUE)
+plot(cz.upper$z ~ cz.upper$c, xlab = "c", ylab = "z", type = "n")
+text(x = cz.upper$c, y = cz.upper$z, labels = names(cz.upper$c)) # rG_Lestodip, vLG_Platy, rG_Tory, and vLG_Mesopol are tentative hubs for the upper trophic levels.
+# rG_Mesopol, rsLG_Lathro, and vLG_Mymarid appear to be ultra-peripheral non-hubs (according to Guimera and Amaral 2005, lingo) - all their links within their module.
+# rG_Eulo, vLG_Eulo, rsLG_Eury, aSG_Tory, rG_Platy appear to be peripheral nodes - nodes with most links within their module.
+
+# roles of genotypes. Note that I don't have to recalculate.
+best_partitions.trans <- best_QuaBiMo(t(genotype_gall_parasitoid_network), QuaBiMo_reps = 100) # 0.327593
+plotModuleWeb(best_partitions.trans$best_module_info[[1]]) # note this transposing the network doesn't lead to a different module configurations.
+
+cz.lower <- czvalues(best_partitions.trans$best_module_info[[1]], weighted = TRUE)
+plot(cz.lower$z ~ cz.lower$c, xlab = "c", ylab = "z", type = "n")
+text(x = cz.lower$c, y = cz.lower$z, labels = names(cz.lower$c)) # I, K, and X appear to be module hubs. And possibly connector hubs, because they often have links to many other modules, but not a homogenous distribution (kinless hubs).
+
+cz.values.df <- data.frame(Nodes = c(names(cz.lower$c), names(cz.upper$c)), c.values = c(cz.lower$c, cz.upper$c), z.values = c(cz.lower$z, cz.upper$z))
+
+write.csv(cz.values.df, "~/Documents/Genotype_Networks/data/cz.values.csv")
+
+# null model analysis of cz-values
+null_model_analysis_czvalues(web = genotype_gall_parasitoid_network, N_null_webs = 2, null_model = "swap.web", cz_level = "higher")
 
 ### Matrix visualization of network
 visweb(genotype_gall_parasitoid_network, type = "diagonal")
