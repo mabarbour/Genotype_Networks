@@ -15,6 +15,47 @@ genotype_gall_parasitoid_network <- read.csv('~/Documents/Genotype_Networks/data
 rownames(genotype_gall_parasitoid_network) <- genotype_gall_parasitoid_network$X 
 genotype_gall_parasitoid_network <- select(genotype_gall_parasitoid_network, -X)
 
+# node contribution
+node.Q.contribs <- node.Q.contribution(web = genotype_gall_parasitoid_network, n_null_webs = 100, Null_model = "swap.web")
+rownames(node.Q.contribs) <- colnames(genotype_gall_parasitoid_network)
+
+write.csv(node.Q.contribs, "~/Documents/Genotype_Networks/data/node.Q.contribs.csv")
+
+tree_level_interaxn_all_plants <- read.csv("~/Documents/Genotype_Networks/data/tree_level_interaxn_all_plants.csv")
+tree_level_interaxn_all_plants <- mutate(tree_level_interaxn_all_plants, plant.position = factor(plant.position))
+
+genotype_gall_web <- tree_level_interaxn_all_plants %>%
+  group_by(Genotype) %>%
+  select(vLG_abund, rG_abund, rsLG_abund, aSG_abund, SG_abund, shootEst.no18) %>%
+  summarise_each(funs(sum)) %>%
+  mutate(vLG_dens = round(vLG_abund/shootEst.no18*1000),
+         rG_dens = round(rG_abund/shootEst.no18*1000),
+         rsLG_dens = round(rsLG_abund/shootEst.no18*1000),
+         aSG_dens = round(aSG_abund/shootEst.no18*1000),
+         SG_dens = round(SG_abund/shootEst.no18*1000)) %>%
+  select(Genotype, vLG_dens:SG_dens)
+rownames(genotype_gall_web) <- genotype_gall_web[ ,1]
+
+visweb(genotype_gall_web[ ,-1]) # not nested, even after null model
+visweb(genotype_gall_web[ ,-1], type = "diagonal")
+nestednodf(comm = genotype_gall_web[ ,-1], order = T, weighted = T) # 38.48
+g.gall.web.best <- best_QuaBiMo(web = genotype_gall_web[ ,-1], QuaBiMo_reps = 10)
+plotModuleWeb(g.gall.web.best$best_module_info[[1]]) # interesting, doesn't strongly correspond to modules identified from tri-trophic interaction.
+czvalues(g.gall.web.best$best_module_info[[1]], weighted = TRUE)
+g.gall.web.best$best_observed_value # 0.199335
+g.gall.web.mod.null <- null_model_analysis_WNODF_QuaBiMo(web = genotype_gall_web[ ,-1], 
+                                  observed_value = 0.199335,
+                                  type = "QuaBiMo", 
+                                  N_null_webs = 100, 
+                                  null_model = "swap.web")
+null_model_analysis_WNODF_QuaBiMo(web = genotype_gall_web[ ,-1], 
+                                  observed_value = 38.48,
+                                  type = "WNODF", 
+                                  N_null_webs = 1000, 
+                                  null_model = "swap.web")
+
+
+
 
 # Notes for Null Model Analysis:
 # r2dtable = Patefield algorithm (preserves marginal totals of network)
@@ -101,6 +142,19 @@ plotModuleWeb(best_partitions$best_module_info[[1]])
 QuaBiMo_Q = best_partitions$best_observed_value
 N_null_webs = 1000
 
+genotype.ptoid.network <- genotype_gall_parasitoid_network %>%
+  mutate(Tory = aSG_Tory + rG_Tory + vLG_Tory,
+         Platy = SG_Platy + vLG_Platy + rG_Platy,
+         Mesopol = vLG_Mesopol + rG_Mesopol,
+         Eulo = vLG_Eulo + rG_Eulo,
+         Lathro = rsLG_Lathro,
+         Eury = rsLG_Eury,
+         Lestodip = rG_Lestodip,
+         Mymarid = vLG_Mymarid) %>%
+  select(Tory:Mymarid)
+best_partitions.ptoids <- best_QuaBiMo(genotype.ptoid.network, QuaBiMo_reps = 100) # 0.327593
+plotModuleWeb(best_partitions.ptoids$best_module_info[[1]])
+
 z_QuaBiMo_r2dtable <- null_model_analysis_WNODF_QuaBiMo(web = genotype_gall_parasitoid_network, 
                                                       observed_value = QuaBiMo_Q,
                                                       type = "QuaBiMo", 
@@ -128,28 +182,102 @@ write.csv(results_QuaBiMo, "~/Documents/Genotype_Networks/data/results_QuaBiMo_g
 
 
 ### Examine c-z values of genotype-gall-parasitoid networks
+source("~/Documents/Genotype_Networks/Rscripts/module.contribution.R")
 
-# roles of herbivore-parasitoid nodes
-cz.upper <- czvalues(best_partitions$best_module_info[[1]], weighted = TRUE)
-plot(cz.upper$z ~ cz.upper$c, xlab = "c", ylab = "z", type = "n")
-text(x = cz.upper$c, y = cz.upper$z, labels = names(cz.upper$c)) # rG_Lestodip, vLG_Platy, rG_Tory, and vLG_Mesopol are tentative hubs for the upper trophic levels.
-# rG_Mesopol, rsLG_Lathro, and vLG_Mymarid appear to be ultra-peripheral non-hubs (according to Guimera and Amaral 2005, lingo) - all their links within their module.
-# rG_Eulo, vLG_Eulo, rsLG_Eury, aSG_Tory, rG_Platy appear to be peripheral nodes - nodes with most links within their module.
+# roles of herbivore-parasitoid nodes. Definitely a bit of a different perspective with looking at % module contribution.
+cz.upper <- module.contribution(best_partitions$best_module_info[[1]], weighted = TRUE, level = "higher")
+plot(cz.upper$module.percent.contribution ~ cz.upper$c, xlab = "c", ylab = "z", type = "n")
+text(x = cz.upper$c, y = cz.upper$module.percent.contribution, labels = names(cz.upper$c)) 
 
-# roles of genotypes. Note that I don't have to recalculate.
-best_partitions.trans <- best_QuaBiMo(t(genotype_gall_parasitoid_network), QuaBiMo_reps = 100) # 0.327593
-plotModuleWeb(best_partitions.trans$best_module_info[[1]]) # note this transposing the network doesn't lead to a different module configurations.
+#cz.upper.geno.ptoids <- czvalues(best_partitions.ptoids$best_module_info[[1]], weighted = TRUE, level = "higher")
+#plot(cz.upper.geno.ptoids$z ~ cz.upper.geno.ptoids$c, xlab = "c", ylab = "z", type = "n")
+#text(x = cz.upper.geno.ptoids$c, y = cz.upper.geno.ptoids$z, labels = names(cz.upper.geno.ptoids$c))
 
-cz.lower <- czvalues(best_partitions.trans$best_module_info[[1]], weighted = TRUE)
-plot(cz.lower$z ~ cz.lower$c, xlab = "c", ylab = "z", type = "n")
-text(x = cz.lower$c, y = cz.lower$z, labels = names(cz.lower$c)) # I, K, and X appear to be module hubs. And possibly connector hubs, because they often have links to many other modules, but not a homogenous distribution (kinless hubs).
+# qualitative role 
+cz.upper.qual <- czvalues(best_partitions$best_module_info[[1]], weighted = FALSE, level = "higher")
+plot(cz.upper.qual$z ~ cz.upper.qual$c, xlab = "c", ylab = "z", type = "n")
+text(x = cz.upper.qual$c, y = cz.upper.qual$z, labels = names(cz.upper.qual$c)) 
 
-cz.values.df <- data.frame(Nodes = c(names(cz.lower$c), names(cz.upper$c)), c.values = c(cz.lower$c, cz.upper$c), z.values = c(cz.lower$z, cz.upper$z))
+# roles of genotypes. 
+cz.lower <- module.contribution(best_partitions$best_module_info[[1]], weighted = TRUE, level = "lower")
+plot(cz.lower$module.percent.contribution ~ cz.lower$c, xlab = "c", ylab = "z", type = "n")
+text(x = cz.lower$c, y = cz.lower$module.percent.contribution, labels = names(cz.lower$c)) # I, K, and X appear to be module hubs. And possibly connector hubs, because they often have links to many other modules, but not a homogenous distribution (kinless hubs).
 
+#cz.lower.geno.ptoids <- czvalues(best_partitions.ptoids$best_module_info[[1]], weighted = TRUE, level = "lower")
+#plot(cz.lower.geno.ptoids$z ~ cz.lower.geno.ptoids$c, xlab = "c", ylab = "z", type = "n")
+#text(x = cz.lower.geno.ptoids$c, y = cz.lower.geno.ptoids$z, labels = names(cz.lower.geno.ptoids$c))
+
+### null model analysis of cz-values. May take a really long time depending on the number of null models.
+source("~/Documents/Genotype_Networks/Rscripts/null_model_analysis_czvalues.R")
+null_model_czvalues.df <- null_model_analysis_czvalues(web = genotype_gall_parasitoid_network, N_null_webs = 100, null_model = "swap.web")
+
+null.high.c.means <- colMeans(null_model_czvalues.df$high.null_c.values, na.rm = TRUE)
+null.high.c.sds <- apply(null_model_czvalues.df$high.null_c.values, 2, function(x) sd(x, na.rm = TRUE))
+null.high.c.95quant <- apply(null_model_czvalues.df$high.null_c.values, 1, function(x) quantile(x, probs = c(0.05, 0.95), na.rm = TRUE))
+
+null.high.z.means <- colMeans(null_model_czvalues.df$high.null_z.values, na.rm = TRUE)
+null.high.z.sds <- apply(null_model_czvalues.df$high.null_z.values, 2, function(x) sd(x, na.rm = TRUE))
+null.high.z.95quant <- apply(null_model_czvalues.df$high.null_z.values, 1, function(x) quantile(x, probs = c(0.05, 0.95), na.rm = TRUE))
+
+null.low.c.means <- colMeans(null_model_czvalues.df$low.null_c.values, na.rm = TRUE)
+null.low.c.sds <- apply(null_model_czvalues.df$low.null_c.values, 2, function(x) sd(x, na.rm = TRUE))
+null.low.c.95quant <- apply(null_model_czvalues.df$low.null_c.values, 1, function(x) quantile(x, probs = c(0.05, 0.95), na.rm = TRUE))
+
+null.low.z.means <- colMeans(null_model_czvalues.df$low.null_z.values, na.rm = TRUE)
+null.low.z.sds <- apply(null_model_czvalues.df$low.null_z.values, 2, function(x) sd(x, na.rm = TRUE))
+null.low.z.95quant <- apply(null_model_czvalues.df$low.null_z.values, 1, function(x) quantile(x, probs = c(0.05, 0.95), na.rm = TRUE))
+
+null.cz.05.95.quantile.df <- data.frame(null.low.c.05.mean = mean(null.low.c.95quant[1, ]),
+           null.low.c.95.mean = mean(null.low.c.95quant[2, ]),
+           null.low.z.05.mean = mean(null.low.z.95quant[1, ]),
+           null.low.z.95.mean = mean(null.low.z.95quant[2, ]),
+           null.high.c.05.mean = mean(null.high.c.95quant[1, ]),
+           null.high.c.95.mean = mean(null.high.c.95quant[2, ]),
+           null.high.z.05.mean = mean(null.high.z.95quant[1, ]),
+           null.high.z.95.mean = mean(null.high.z.95quant[2, ]),
+           null.low.c.05.sd = sd(null.low.c.95quant[1, ]),
+           null.low.c.95.sd = sd(null.low.c.95quant[2, ]),
+           null.low.z.05.sd = sd(null.low.z.95quant[1, ]),
+           null.low.z.95.sd = sd(null.low.z.95quant[2, ]),
+           null.high.c.05.sd = sd(null.high.c.95quant[1, ]),
+           null.high.c.95.sd = sd(null.high.c.95quant[2, ]),
+           null.high.z.05.sd = sd(null.high.z.95quant[1, ]),
+           null.high.z.95.sd = sd(null.high.z.95quant[2, ]))
+           
+
+
+# create and save dataframe of cz-values
+cz.values.df <- data.frame(Nodes = c(names(cz.lower$c), names(cz.upper$c)), 
+                           c.values = c(cz.lower$c, cz.upper$c), 
+                           null.c.values.mean = c(null.low.c.means, null.high.c.means), 
+                           null.c.values.sd = c(null.low.c.sds, null.high.c.sds),
+
+                           z.values = c(cz.lower$module.percent.contribution, cz.upper$module.percent.contribution), 
+                           null.z.values.mean = c(null.low.z.means, null.high.z.means), 
+                           null.z.values.sd = c(null.low.z.sds, null.high.z.sds))
+cz.values.df <- mutate(cz.values.df,
+                       Zscore.c.values = (c.values - null.c.values.mean)/null.c.values.sd,
+                       Zscore.z.values = (z.values - null.z.values.mean)/null.z.values.sd)
+
+# current null model data based on 100 null models of r2dtable algorithm
 write.csv(cz.values.df, "~/Documents/Genotype_Networks/data/cz.values.csv")
+write.csv(null.cz.05.95.quantile.df, "~/Documents/Genotype_Networks/data/null.cz.05.95.quantile.df.csv")
 
-# null model analysis of cz-values
-null_model_analysis_czvalues(web = genotype_gall_parasitoid_network, N_null_webs = 2, null_model = "swap.web", cz_level = "higher")
+# exploring cz.value data and cutoffs for assigning roles in network
+cz.values.csv <- read.csv("~/Documents/Genotype_Networks/data/cz.values.csv")
+cz.values.csv$trophic <- c(rep("Genotype",25), rep("gall-ptoid", 14))
+
+hist(filter(cz.values.csv, trophic == "Genotype")$c.values)
+hist(filter(cz.values.csv, trophic == "Genotype")$z.values, na.rm = T)
+
+hist(filter(cz.values.csv, trophic == "gall-ptoid")$c.values)
+hist(filter(cz.values.csv, trophic == "gall-ptoid")$z.values, na.rm = T)
+
+ggplot(cz.values.csv, aes(x = c.values, y = z.values, group = trophic)) + 
+  facet_grid( ~ trophic) + 
+  geom_point() +
+  #geom_text(aes(label = Nodes)) +
+  theme_bw()
 
 ### Matrix visualization of network
 visweb(genotype_gall_parasitoid_network, type = "diagonal")

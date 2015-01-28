@@ -101,6 +101,15 @@ genotype_nested_model <- function(data, y){
 tree_level_interaxn_all_plants <- read.csv("~/Documents/Genotype_Networks/data/tree_level_interaxn_all_plants.csv")
 tree_level_interaxn_all_plants <- mutate(tree_level_interaxn_all_plants, plant.position = factor(plant.position))
 
+# test analysis. don't know how promising the tree-level approach is going to be
+sub.tree <- select(tree_level_interaxn_all_plants, plant.position, vLG_Tory, vLG_Platy, vLG_Mesopol)#aSG_aSG.larv:vLG_vLG.pupa, -aSG_aSG.larv, -rsLG_Pont.surv, -SG_SG.larv, - vLG_vLG.pupa, -rG_rG.larv)
+row.names(sub.tree) <- sub.tree$plant.position
+visweb(sub.tree[ ,-1], "diagonal")
+library(bipartite)
+sub.tree.mod <- computeModules(sub.tree[ ,-1])
+plotModuleWeb(sub.tree.mod)
+printoutModuleInformation(sub.tree.mod)
+
 # plant trait data
 tree_level_traits <- read.csv("~/Documents/Genotype_Networks/data/plant.trait.galls.2011.tree.df.csv")
 tree_level_traits <- select(tree_level_traits, -X, -Genotype, plant.position, vLG.2011 = vLG, rsLG.2011 = rsLG, Total_Area:flavanonOLES.PC1)
@@ -111,6 +120,9 @@ geno_level_traits <- select(geno_level_traits, -X)
 
 # merge interaction and tree-trait data
 tree_level_interaxn_all_plants <- left_join(tree_level_interaxn_all_plants, tree_level_traits, by = "plant.position")
+
+module.info <- read.csv('~/Documents/Genotype_Networks/data/module_info_genotype_gall_parasitoid_network.csv')
+
 
 ### prepare data that is resolved to the individual gall level
 

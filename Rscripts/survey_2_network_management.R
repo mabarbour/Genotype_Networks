@@ -234,7 +234,18 @@ gall_net_melt_with_no_gall_data <- rbind(gall_net_melt, no_gall_df)
 gall_net_melt_plant_info <- left_join(gall_net_melt_with_no_gall_data, plant.info_df) %>%
   select(Gender:shootEst.no18, plant.position:value)
 
-#### Data has been checked and appears to be error free.
+### After performing preliminary analyses. I have decided to remove plant position 373 (Genotype S) from further analysis. It had very large outliers for both vLG and rG density. rG density at the Genotype level was especially skewed by this outlier. This plant position also had the lowest number of estimated shoots sampled (between 23 & 12), whereas the next lowest at was between 66 & 50. Plant position 390 had a very large number of shoots sampled (between 993 & 1189), but did not appear to be an outlier for gall densities, therefore I kept it.
+gall_net_melt_plant_info <- filter(gall_net_melt_plant_info, plant.position != "373")
 
+## although plant position 77 was a "mystery" (see notes above) I'm assigning it positive values for "Galls.found" to avoid confusion in downstream analyses, because I have decided to retain this data.
+pp77s <- which(gall_net_melt_plant_info$plant.position == "77")
+gall_net_melt_plant_info$Galls.found[pp77s] <- c(rep(1, length(pp77s))) 
+
+## reassign this tree to have zero galls found. We did have a rsLG-moth.ad3 associated with it, but I already decided above to remove this from the data set, so it should be involved in the density estimates.
+pp521 <- with(gall_net_melt_plant_info, which(Galls.found == "1" & plant.position == "521")) 
+gall_net_melt_plant_info$Galls.found[pp521] <- 0
+
+
+#### Data has been checked and appears to be error free.
 write.csv(gall_net_melt_plant_info,"~/Documents/Genotype_Networks/data/gall_network_data.csv")
 

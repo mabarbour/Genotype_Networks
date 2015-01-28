@@ -1,4 +1,39 @@
-library(dplyr)
+## This script manages network data at genotype level
+
+## source in required scripts and data
+source('~/Documents/Genotype_Networks/Rscripts/network_management_tree_level.R')
+source('~/Documents/miscellaneous_R/length2_function.R')
+
+## create genotype-level interaction data. I accounted for density by dividing by the number of estimated shoots, because that was the most straightforward way to account for differences in sampling among trees. RIGHT NOW I HAVEN'T CALCULATE RICHNESS RESPONSES AND PARASITISM YET. OR 2011 GALL DATA. I SHOULD NOT CONTROL FOR RICHNESS OR PARASITISM IN TERMS OF SHOOT COUNTS, BUT I SHOULD DIVIDE 2011 GALL DATA BY TOTAL AREA.
+tree_level_interaxn_density <- select(tree_level_interaxn_all_plants_traits_size, aSG_aSG.larv:link_abund, vLG_ecto:rG_ecto, vLG_egg)/tree_level_interaxn_all_plants$shootEst.no18*100 # scale to a per 100 shoot basis. 
+
+geno_level_interaxn_density <- aggregate(tree_level_interaxn_density, 
+                                         by = list(Genotype = tree_level_interaxn_all_plants_traits_size$Genotype), 
+                                         FUN = mean) %>%
+  tbl_df()
+
+## create genotype-level trait data.
+geno_level_traits <- tree_level_traits %>%
+  group_by(Genotype) %>%
+  select(Total_Area:flavanonOLES.PC1) %>%
+  summarise_each(funs(mean.na.rm = mean(., na.rm = TRUE))) 
+
+## create genotype-level gall size data
+geno_level_gall.size.count.join <- select(tree_level_gall.size.count.join, 
+                                          Genotype:vLG.height.mean) %>% # counts per tree not needed
+  group_by(Genotype) %>% 
+  select(-plant.position) %>%
+  summarise_each(funs(mean.na.rm = mean(., na.rm = TRUE), 
+                      length2.na.rm = length2(., na.rm = TRUE))) # length2 enables me to calculate the number of plant replicates that were used to estimate mean gall size.
+
+## merge interaction and genotype-trait data
+genotype_level_interaxn_traits_size <- join_all(list(geno_level_interaxn_density, geno_level_traits, geno_level_gall.size.count.join), by = "Genotype") %>%
+  tbl_df()
+
+#tree_level_interaxn_all_plants_traits_size <- read.csv('~/Documents/Genotype_Networks/data/tree_level_interaxn_all_plants_traits_size.csv')
+
+
+## EVERYTHING BELOW THIS IS OLD
 
 tree_level_interaxn_all_plants <- read.csv('~/Documents/Genotype_Networks/data/tree_level_interaxn_all_plants.csv')
 

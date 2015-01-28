@@ -1,42 +1,68 @@
-null_model_analysis_czvalues <- function(web, N_null_webs = 10, null_model = "swap.web", cz_level = "higher") {
+null_model_analysis_czvalues <- function(web, N_null_webs = 10, null_model = "swap.web", ColNames = colnames(web), RowNames = rownames(web)) {
   require('bipartite')
+  require('plyr')
   
   # generate null models
   null_web_list <- nullmodel(web, N = N_null_webs, method = null_model)
   
-  # add row and column names to each null model
-  t <- sapply(null_web_list, provideDimnames)
-  
-  ### ON THE RIGHT TRACK. NEED TO ADD DIMNAMES TO ALL NULL MODELS, THEN I SHOULD BE ABLE TO CALCULATE THE CZ VALUES.
-  browser()
-  # need to extract cz values
-  #nulls <- sapply(null_web_list, computeModules)
-
-  null_cz.values <- list()
-  for(i in 1:length(null_web_list)){
-    tmp <- computeModules(null_web_list[[i]])
-    browser()
-    nulls[[i]] <- czvalues(tmp, weighted = TRUE, level = cz_level)
+  # add row and column names to each null model. Necessary to run czvalues function on moduleWebObject
+  for(i in 1:N_null_webs){
+    colnames(null_web_list[[i]]) <- ColNames
+    rownames(null_web_list[[i]]) <- RowNames
   }
-  #browser()
-
   
-  #null_cz.values <- sapply(nulls, FUN = function(x) czvalues(x, weighted = TRUE, level = cz_level))
+  # compute modules for each null model
+  nulls <- sapply(null_web_list, computeModules)
+
+  # compute "higher" trophic level cz values for each null model
+  high.nulls_cz.values <- sapply(nulls, function(x) module.contribution(x, weighted = TRUE, level = "higher"))
+  
   
  
-  
-  null_values <- vector()
-  for(i in 1:dim(nulls)[2]){
-    null_values[i] <- nulls[ ,i]$statistic[3] 
+  # extract c values
+  high.null_c.values <- list()
+  for(i in 1:N_null_webs){
+    high.null_c.values[[i]] <- high.nulls_cz.values[ ,i]$c 
   }
   
-  mean_null_values <- mean(null_values)
-  sd_null_values <- sd(null_values)
+  # extract z values
+  high.null_z.values <- list()
+  for(i in 1:N_null_webs){
+    high.null_z.values[[i]] <- high.nulls_cz.values[ ,i]$module.percent.contribution
+  }
   
-  z_score <- (observed_value - mean_null_values)/sd_null_values
-  names(z_score) <- "z-score"
-  names(mean_null_values) <- "mean of null values"
-  names(sd_null_values) <- "SD of null values"
-  return(c(z_score, mean_null_values, sd_null_values))
+  # summary stats for c-values
+  high.null_c.values.df <- ldply(high.null_c.values)
+  
+  # summary stats for z-values
+  high.null_z.values.df <- ldply(high.null_z.values)
+  
+  
+  # compute "lower" trophic level cz values for each null model
+  low.nulls_cz.values <- sapply(nulls, function(x) module.contribution(x, weighted = TRUE, level = "lower"))
+  
+  # extract c values
+  low.null_c.values <- list()
+  for(i in 1:N_null_webs){
+    low.null_c.values[[i]] <- low.nulls_cz.values[ ,i]$c 
+  }
+  
+  # extract z values
+  low.null_z.values <- list()
+  for(i in 1:N_null_webs){
+    low.null_z.values[[i]] <- low.nulls_cz.values[ ,i]$module.percent.contribution
+  }
+  
+  # summary stats for c-values
+  low.null_c.values.df <- ldply(low.null_c.values)
+  
+  # summary stats for z-values
+  low.null_z.values.df <- ldply(low.null_z.values)
+  
+  
+  # make a list
+  list_cz.values <- list(high.null_c.values.df, high.null_z.values.df, low.null_c.values.df, low.null_z.values.df)
+  names(list_cz.values) <- c("high.null_c.values","high.null_z.values", "low.null_c.values","low.null_z.values")
+  return(list_cz.values)
 }
 

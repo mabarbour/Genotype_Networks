@@ -12,6 +12,9 @@ module.info.genotype = module.info %>%
   select(Genotype = Vertex, Module.ID, Trophic) %>%
   filter(Trophic == "Genotype")
 
+#testing
+module.info.genotype <- cbind.data.frame(module.info.genotype, cz.values.df[1:25,c("Nodes","z.values")])
+
 gall_density_genotype_summary_df <- read.csv('~/Documents/Genotype_Networks/data/gall_density_genotype_summary_df.csv')
 gall_density_genotype_summary_df <- select(gall_density_genotype_summary_df, -X)
 
@@ -33,8 +36,14 @@ library(visreg)
 visreg(vLG_Platy_glm, scale = "response")
 
 dfa_data <- dfa_data %>%
-  select(Genotype, Module.ID, aSG_abund:rsLG_abund, vLG_volume_mean, rG_volume_mean) %>%
+  select(Genotype, Module.ID, z.values, aSG_abund:rsLG_abund, vLG_volume_mean, rG_volume_mean) %>%
   mutate(Module.ID = as.factor(Module.ID))
+
+summary(lm(sqrt(vLG_abund) ~ Module.ID, data = subset(dfa_data, Module.ID %in% c(1,3,4,5)), weights = z.values))
+summary(lm(sqrt(rsLG_abund) ~ Module.ID, data = subset(dfa_data, Module.ID %in% c(1,3,5)), weights = z.values))
+summary(lm(sqrt(vLG_volume_mean) ~ Module.ID, data = subset(dfa_data, Module.ID %in% c(1,3,5)), weights = z.values))
+plot(lm(sqrt(rG_volume_mean) ~ Module.ID, data = subset(dfa_data, Module.ID %in% c(1,3,4)), weights = z.values))
+
 
 plot(vLG_abund ~ Module.ID, dfa_data)
 plot(vLG_volume_mean ~ Module.ID, dfa_data)
