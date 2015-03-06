@@ -28,9 +28,9 @@ interaction.df <- metaweb.info[[1]] %>%
 
 nodeinfo.df <- metaweb.info[[2]] %>%
   mutate(guild = factor(c(rep("gall", 4),
-                   "predator",
-                   rep("Larval parasitoid", 3),
-                   rep("Egg parasitoid", 2))),
+                   "Predator",
+                   rep("Larval\nparasitoid", 3),
+                   rep("Egg\nparasitoid", 2))),
          names = c("Cecidomyiid",
                    "Rab. (bud)",
                    "Iteomyia",
@@ -54,17 +54,20 @@ metaweb.plot <- ggplot(interaction.df) +
                size = interaction.df$weight.trans/max(interaction.df$weight.trans)*25,
                alpha = 0.75)  +
   new_theme_empty + 
-  geom_point(data = filter(nodeinfo.df, y > 1), aes(x = x, y = y, fill = vertex.names),
+  geom_point(data = filter(nodeinfo.df, y > 1), aes(x = x, y = y, fill = vertex.names, shape = guild),
              color = "black",
-             shape = 25,
+             #shape = 25,
              size = 30)  + 
-  geom_text(data = filter(nodeinfo.df, y > 1), aes(x = x, y = y + 0.15, label = names), size = 8) +  
+  scale_shape_manual(values = c(25, 22, 23), name = "Natural enemy guild") + 
+  geom_text(data = filter(nodeinfo.df, y > 1), aes(x = x, y = y + 0.15, label = names), size = 6) +  
   geom_point(data = filter(nodeinfo.df, y == 1), aes(x = x, y = y, fill = vertex.names),
              color = "black",
              shape = 21,
              size = 30) + 
   scale_fill_brewer(palette = "Spectral", guide = "none") +
-  geom_text(data = filter(nodeinfo.df, y == 1), aes(x = x, y = y - 0.15, label = names), size = 8)
+  geom_text(data = filter(nodeinfo.df, y == 1), aes(x = x, y = y - 0.15, label = names), size = 8) +
+  theme(legend.text = element_text(size = 14),
+        legend.title = element_text(size = 16))
 
 #Code to override clipping
 metaweb.plot

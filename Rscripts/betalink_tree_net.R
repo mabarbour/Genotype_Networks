@@ -30,6 +30,7 @@ geno_4plus <- c("*","B","I","K","L","S","V","X","Z") # 9 (if Pontania galls were
 ## dataset to use for PERMANOVA
 net_df <- tree_level_interaxn_all_plants_traits_size#filter(tree_level_interaxn_all_plants_traits_size, abund_interaxns_noPont > 0, Genotype %in% geno_3plus)
 
+
 ## Permutational multivariate analysis of variance (PERMANOVA)
 net_qual <- ifelse(net_df[ ,interaxns_noPont] > 0, 1, 0)
 
@@ -311,7 +312,8 @@ X.df <- X_info[[1]] %>%
   reshape(idvar = "Group", timevar = "Sequence", direction = "wide") %>%
   mutate(weight.trans = Weight.1) # unscaled weights
 X.nodes <- X_info[[2]] %>%
-  mutate(colrs = c(rab.bud.col, iteo.col, eulo.col, meso.col, platy.col, tory.col)) %>%
+  mutate(colrs = c(rab.bud.col, iteo.col, eulo.col, meso.col, platy.col, tory.col),
+         guilds = c("gall","gall","ecto","ecto","egg","ecto")) %>%
   arrange(vertex.names)
 
 metaplot.col <- brewer.pal(11, "Spectral")
@@ -332,8 +334,10 @@ X.plot <- ggplot(X.df) +
                size = X.df$weight.trans/max.seg.wt*15,
                alpha = 0.75) +
   new_theme_empty + 
-  geom_point(data = filter(X.nodes, y > 1), aes(x = x, y = y, fill = vertex.names), 
-             shape = 25, size = 30) +
+  geom_point(data = filter(X.nodes, y > 1), aes(x = x, y = y, fill = vertex.names, shape = guilds), 
+             #shape = 25, 
+             size = 30) +
+  scale_shape_manual(values = c(22, 25), guide = "none") + 
   geom_point(data = filter(X.nodes, y == 1), aes(x = x, y = y, fill = vertex.names), 
              shape = 21, size = 30) +
   scale_fill_manual(values = X.nodes$colrs, guide = "none")
@@ -351,7 +355,8 @@ F.df <- F_info[[1]] %>%
   reshape(idvar = "Group", timevar = "Sequence", direction = "wide") %>%
   mutate(weight.trans = Weight.1) # unscaled weights
 F.nodes <- F_info[[2]] %>%
-  mutate(colrs = c(cecid.col, iteo.col, eulo.col, meso.col, tory.col)) %>%
+  mutate(colrs = c(cecid.col, iteo.col, eulo.col, meso.col, tory.col),
+         guilds = c("gall","gall","ecto","ecto","ecto")) %>%
   arrange(vertex.names)
 
 F.plot <- ggplot(F.df) + 
@@ -361,7 +366,7 @@ F.plot <- ggplot(F.df) +
                alpha = 0.75) +
   new_theme_empty + 
   geom_point(data = filter(F.nodes, y > 1), aes(x = x, y = y, fill = vertex.names), 
-             shape = 25, size = 30) +
+             shape = 22, size = 30) +
   geom_point(data = filter(F.nodes, y == 1), aes(x = x, y = y, fill = vertex.names), 
              shape = 21, size = 30) +
   scale_fill_manual(values = F.nodes$colrs, guide = "none")
@@ -378,7 +383,8 @@ P.df <- P_info[[1]] %>%
   reshape(idvar = "Group", timevar = "Sequence", direction = "wide") %>%
   mutate(weight.trans = Weight.1) # unscaled weights
 P.nodes <- P_info[[2]] %>%
-  mutate(colrs = c(iteo.col, platy.col)) %>%
+  mutate(colrs = c(iteo.col, platy.col),
+         guilds = c("gall","egg")) %>%
   arrange(vertex.names)
 
 P.plot <- ggplot(P.df) + 
