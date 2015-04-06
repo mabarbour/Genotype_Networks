@@ -27,6 +27,20 @@ full.df <- tree_level_interaxn_all_plants_traits_size
 interaxns_noPont # all gall-parasitoid interactions used for analysis
 ```
 
+Qualitative differences in gall community composition?
+```{r vegan galls}
+gall.comm <- full.df %>% select(Genotype, vLG_abund, rG_abund, aSG_abund, SG_abund)
+gall.comm.sub <- filter(gall.comm, rowSums(gall.comm[ ,-1]) > 0, 
+                        Genotype != "J", Genotype != "N", Genotype != "U")
+table(gall.comm.sub$Genotype)
+
+gall.comm.raupcrick <- raupcrick(gall.comm.sub[ ,-1])
+
+adonis(gall.comm.raupcrick ~ Genotype, gall.comm.sub)
+
+```
+
+
 ```{r mv abund galls}
 gall.mvabund <- mvabund(full.df[ ,c("vLG_abund","rG_abund","aSG_abund","SG_abund")])
 meanvar.plot(gall.mvabund ~ full.df$Genotype)

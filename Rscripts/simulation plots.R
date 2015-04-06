@@ -2,31 +2,49 @@
 require(visreg)
 require(ggplot2)
 require(grid)
+require(dplyr)
+require(gridBase)
 #require(png)
 
 ## upload results from simulation
 all.measures <- read.csv("~/Documents/Genotype_Networks/data/food web complexity simulation.csv")
 dim(all.measures)[1] # 2221 unique simulations. 2425 simulations originally run
 
+single.complexity.max <- max(filter(all.measures, Number.of.Genotypes == 1)$total_complexity, na.rm = TRUE)
+
 ## upload png of food web composition ordination
 #ord.png <- readPNG("~/Documents/Genotype_Networks/figures/full.link.composition.png")
 #ord.rast <- rasterGrob(ord.png, interpolate = TRUE)
 
+# setup multipanel plot for combining ggplot and base graphics (ordination from "link_composition_plots")
+par(mfrow = c(1,2))
+plot.new()
+vps <- baseViewports()
+pushViewport(vps$figure)
+vp1 <- plotViewport(margins = c(2.4, 0.75, 3.1, 0) - 1)#c(1.8, 1, 0, 1))
+
+A.total <- data.frame(x = 0.5, y = 2.4, labels = "(A)")
+
 ## plot the relationship between genetic variation and total food web complexity (weighted linkage density)
-ggplot(all.measures, 
+total <- ggplot(all.measures, 
        aes(x = Number.of.Genotypes, y = total_complexity)) + 
+  geom_hline(yintercept = single.complexity.max, linetype = "dashed") +
   geom_jitter(shape = 1, color = "grey", position = position_jitter(width = 0.15, height = NULL)) + 
-  stat_summary(fun.y = mean, geom = "point", color = "steelblue", size = 8) + 
-  xlab("Genetic variation (no. of genotypes)") + ylab("Food web complexity index") +
+  stat_summary(fun.y = mean, geom = "point", color = "steelblue", size = 5) + 
+  xlab("Genotypic diversity (no. of genotypes)") + ylab("Food web complexity index") +
   scale_x_continuous(limits = c(0,25), breaks = 1:25) +
   scale_y_continuous(limits = c(1,2.4), breaks = seq(1,2.5, by = 0.25)) +
+  geom_text(data = A.total, aes(x = x, y = y, label = labels), 
+            inherit.aes = FALSE, size = 6) +
   theme_bw() + 
-  theme(axis.text = element_text(size = 14),
+  theme(axis.text.y = element_text(size = 12),
+        axis.text.x = element_text(size = 10),
         axis.title.x = element_text(size = 16, vjust = 0.1),
         axis.title.y = element_text(size = 16, vjust = 1),
-        panel.grid = element_blank()) #+
-  #annotation_custom(ord.rast, xmin = 16, xmax = 26, ymin = 1, ymax = 2)
+        panel.grid = element_blank()) 
 
+print(total, vp = vp1)
+# then plot ordination in "link_composition_plots.R" and save the figure as a pdf, landscape, 8.5" x 11"
 
 ## plot the relationship between genetic variation and willow-gall complexity (weighted linkage density)
 ggplot(all.measures, 

@@ -330,14 +330,14 @@ rownames(centroids.cap.geno) <- levels(full.links.df$Genotype)[-c(10,14,21)] # r
 
 ## generate plot. Coded out the manner in which I saved the plot
 
-png(file="~/Documents/Genotype_Networks/figures/full.link.composition.png",width=8, height=8, units = "in", res = 300)
+#png(file="~/Documents/Genotype_Networks/figures/full.link.composition.png",width=8, height=8, units = "in", res = 300)
 plot.new()
-plot.window( xlim=c(-1.75,1.5), ylim = c(-1.5,2.5), asp = 1) 
+plot.window( xlim=c(-1.75,1.5), ylim = c(-1.5,2.5), asp = 1, cex.axis = 0.8) 
 abline(h=0, lty="dotted")
 abline(v=0, lty="dotted")
 axis(side=1, tck = -0.015, padj=-0.5)
 axis(side=2, tck= -0.015, las=1)
-title(xlab="CAP 1", ylab="CAP 2")
+title(xlab="CAP 1", ylab="CAP 2", line = 1.75)
 box()
 
 # fill in the plot
@@ -347,8 +347,9 @@ ordiellipse(cap.geno, groups = full.links.df.sub$Genotype,
             border = NA)
 #ordiellipse(cap.geno, groups = full.links.df.sub$Genotype, kind = "se", show.groups="X", col = "grey", draw = "polygon") # code for highlighting specific groups
 text(x = centroids.cap.geno[ ,1], centroids.cap.geno[ ,2], labels = row.names(centroids.cap.geno))
+text(x = -1.5, y = 3, labels = "(B)")
 
-dev.off() # turn off pdf device.
+#dev.off() # turn off pdf device.
 
 
 
