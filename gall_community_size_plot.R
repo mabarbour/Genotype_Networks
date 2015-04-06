@@ -66,6 +66,16 @@ mean(gall.comm.bray) # on average, gall communities were 52% dissimilar from eac
 sd(gall.comm.bray)
 range(gall.comm.bray)
 
+# compare to average dissimilarity estimates using dissimilarity index at tree level.
+galls <- full.df %>%
+  select(Genotype, vLG_abund, rG_abund, aSG_abund, SG_abund) %>%
+  mutate(total_abund = vLG_abund + rG_abund + aSG_abund + SG_abund) %>%
+  filter(total_abund > 0)
+
+galls.geno.dist <- meandist(vegdist(galls[ ,-1], "bray"), galls$Genotype)
+summary(galls.geno.dist) # on average, gall communities were 57% dissimilar from each other
+#plot(galls.geno.dist, cluster = "average")
+
 # 
 gall.size.summary <- gall.size.df %>%
   group_by(Genotype) %>%

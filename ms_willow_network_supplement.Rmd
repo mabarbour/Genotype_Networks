@@ -17,7 +17,7 @@ source('~/Documents/miscellaneous_R/jensen_magnitude_function.R')
 #library(vegan) # for adonis analysis
 #library(knitr) # for making tables
 library(ggplot2) # for plotting
-theme_set(theme_classic()) # customize ggplot for prettier default graphs
+theme_set(theme_bw()) # customize ggplot for prettier default graphs
 library(gridExtra) # for grid.arrange
 library(mvabund) # multivariate analysis
 library(HH) # for variance inflation factor analysis (vif) in multiple regression
@@ -51,17 +51,18 @@ anova.gall # vLG_abund, rG_abund and aSG_abund are driving the community respons
 
 Boxplots of gall abundance among the different genotypes.
 ```{r gall abund across genotypes, echo = FALSE}
-vLG.abund.plot <- ggplot(data = full.df, aes(x = Genotype, y = vLG_abund)) + 
-  geom_boxplot() + ylab("Iteomyia salicisverruca density (#/branch)")
-rG.abund.plot <- ggplot(data = full.df, aes(x = Genotype, y = rG_abund)) + 
-  geom_boxplot() + ylab("Rabdophaga salicisbrassicoides density (#/branch)")
-aSG.abund.plot <- ggplot(data = full.df, aes(x = Genotype, y = aSG_abund)) + 
-  geom_boxplot() + ylab("Cecidomyid sp. A density (#/branch)")
-SG.abund.plot <- ggplot(data = full.df, aes(x = Genotype, y = SG_abund)) + 
-  geom_boxplot() + ylab("Rabdophaga salicisbattatus density (#/branch)")
+gall.plot.df <- as.data.frame(full.df) %>% # melt doesn't like 'tbl' class
+  select(Genotype, 
+         Iteomyia_salicisverruca = vLG_abund,
+         Cecidomyiid_sp.A = aSG_abund,
+         Rabdophaga_salicisbrassicoides = rG_abund, 
+         Rabdophaga_salicisbattatus = SG_abund) %>%
+  melt()
 
-grid.arrange(vLG.abund.plot, rG.abund.plot, aSG.abund.plot, SG.abund.plot)
+ggplot(gall.plot.df, aes(x = Genotype, y = value, color = variable)) + 
+  geom_boxplot() + facet_wrap( ~ variable, nrow = 2) + theme_bw() + ylab("Gall density (#/branch)")
 ```
+
 
 ```{r mvabund gall-trait associations}
 # selects galls and traits for analysis
@@ -314,26 +315,38 @@ gall.div.df$diversity <- diversity(select(gall.div.df, vLG_abund:SG_abund))
 
 boxplot(diversity ~ factor(Number.of.Genotypes), gall.div.df, ylab = "Gall diversity", xlab = "Number of Genotypes")
 
-N <- 50
+N <- 1000
 link.div.list <- list()
 for(i in 1:N){
   link.div.list[[i]] <- round(predict.allcombos(manyglm.full, factor.index = 2), 1)
 } # takes a couple minutes with 50 reps
-
+#library(vegan)
 link.div.df <- ldply(link.div.list) %>% tbl_df()
 link.div.df$diversity <- diversity(select(link.div.df, aSG_Tory:vLG_Tory))
 link.div.df$repID <- 1:dim(link.div.df)[1]
 
+# get predicted weighted linkage density for each genotype
+predict.single.geno <- as.data.frame(round(predict.manyglm(manyglm.full, data.frame(Genotype = levels(full.df$Genotype)), type = "response"),1))
+predict.single.geno$Number.of.Genotypes <- rep(1, 26)
+predict.single.geno$diversity <- diversity(select(predict.single.geno, -Number.of.Genotypes))
+predict.single.geno$repID <- 25001:(25001+25)
+
+link.div.df <- rbind.data.frame(link.div.df, predict.single.geno)
+
 boxplot(diversity ~ factor(Number.of.Genotypes), link.div.df, ylab = "Interaction Diversity", xlab = "Number of Genotypes")
 
-link.melt <- melt(select(link.div.df, -diversity), id.vars = c("repID", "Number.of.Genotypes"))
+link.melt <- as.data.frame(link.div.df) %>%
+  select(-diversity) %>%
+  melt(id.vars = c("repID", "Number.of.Genotypes"))
   
 link.split <- colsplit(link.melt$variable, "_", names = c("gall","parasitoid"))
 link.melt.df <- cbind(link.melt, link.split)
 
 web.list <- cast(link.melt.df, gall ~ parasitoid | repID + Number.of.Genotypes, mean)
 
-library(bipartite)
+single.web.list <- cast(filter(link.melt.df, Number.of.Genotypes == 1), gall ~ parasitoid | repID, mean)
+
+#library(bipartite)
 web.list.measures <- c()
 genotype.number <- c()
 for(i in 1:dim(web.list)){
@@ -343,20 +356,93 @@ for(i in 1:dim(web.list)){
   tmp.web <- as.matrix.data.frame(tmp.web[ ,-1])
   web.list.measures[i] <- networklevel(tmp.web, index = "linkage density", weighted = TRUE)
 }
+
+single.web.list.measures <- c()
+single.genotype.number <- c()
+for(i in 1:dim(web.list)){
+  genotype.number[i] <- names(single.web.list[[i]][1])
+  tmp.web <- single.web.list[[i]][[1]]
+  rownames(tmp.web) <- tmp.web$gall
+  tmp.web <- as.matrix.data.frame(tmp.web[ ,-1])
+  web.list.measures[i] <- networklevel(tmp.web, index = "linkage density", weighted = TRUE)
+}
+
 web.measures.df <- cbind.data.frame(Number.of.Genotypes = as.numeric(genotype.number),
                                     Weighted.Linkage.Density = web.list.measures)
 
 boxplot(Weighted.Linkage.Density ~ factor(Number.of.Genotypes), web.measures.df, ylab = "Weighted Linkage Density", xlab = "Number of Genotypes")
+
+write.csv(web.measures.df, "web.measures.df.csv")
+
+ggplot(web.measures.df, 
+       aes(x = Number.of.Genotypes, y = Weighted.Linkage.Density)) + 
+  geom_jitter(shape = 1, color = "grey", position = position_jitter(width = 0.15, height = NULL)) + 
+  stat_summary(fun.y = mean, geom = "point", color = "steelblue", size = 8) + 
+  xlab("Genetic variation (# of genotypes)") + ylab("Weighted linkage density") +
+  scale_x_continuous(limits = c(0,26), breaks = 1:26) +
+  theme_bw() + 
+  theme(axis.text = element_text(size = 14),
+        axis.title.x = element_text(size = 16, vjust = 0.1),
+        axis.title.y = element_text(size = 16, vjust = 1),
+        panel.grid = element_blank())
 
 web.measures.summary <- web.measures.df %>%
   group_by(Number.of.Genotypes) %>%
   summarise(median.link.density = median(Weighted.Linkage.Density))
 with(web.measures.summary, max(median.link.density)/min(median.link.density))
 
-library(mgcv)
+#library(mgcv)
+#library(visreg)
 web.sum.lm <- lm(log(median.link.density) ~ log(Number.of.Genotypes), data = web.measures.summary)
 summary(web.sum.lm) # Need to understand interpretation here.
 visreg(web.sum.lm) # not quite there
+```
+
+```{r complementarity}
+net.pred.geno <- as.data.frame(round(predict.manyglm(manyglm.full, 
+                                       newdata = data.frame(Genotype = levels(full.df$Genotype)), 
+                                       type = "response"), 1)) %>% # round to avoid pseudoaccuracy 
+  mutate(Genotype = levels(full.df$Genotype)) %>%
+  melt(id.vars = "Genotype")
+
+net.split <- colsplit(net.pred.geno$variable, pattern = "_", names = c("gall","parasitoid"))
+net.pred.geno.df <- cbind(net.pred.geno, net.split)
+
+net.pred.full.df <- net.pred.geno.df %>%
+  group_by(variable, gall, parasitoid) %>%
+  summarise(value = mean(value)) 
+
+net.list <- cast(net.pred.geno.df, gall ~ parasitoid | Genotype, mean)
+net.list.noU <- net.list[-21]
+
+net.full <- cast(net.pred.full.df, gall ~ parasitoid, mean)
+rownames(net.full) <- net.full$gall
+net.full <- as.matrix.data.frame(net.full[ ,-1]) # remove gall variable
+net.full.measure <- networklevel(net.full, index = c("links per species", "linkage density", "Shannon diversity"), weighted = TRUE) # note that the weighted linkage density here is higher than from my simulation with the 26 genotypes...
+
+
+library(bipartite)
+nets <- list()
+net.list.measures <- c()
+genotypes <- c()
+for(i in 1:dim(net.list.noU)){
+  genotypes[i] <- names(net.list.noU)[i]
+  tmp.web <- net.list.noU[[i]]
+  rownames(tmp.web) <- tmp.web$gall
+  nets[[i]] <- as.matrix.data.frame(tmp.web[ ,-1])
+  net.list.measures[i] <- networklevel(nets[[i]], index = "linkage density", weighted = TRUE)
+}
+mean(net.list.measures)
+genotypes
+net.list.measures.df <- cbind.data.frame(genotypes, net.list.measures)
+networklevel(nets[[25]], index = c("links per species", "linkage density", "Shannon diversity"), weighted = TRUE)
+
+qplot(net.list.measures.df, x = factor(1), y = net.list.measures, fill = genotypes, , color = "black", geom = "bar", stat = "identity")
+sum(net.list.measures.df$net.list.measures)
+
+ph <- matrix(c(1,1,1), nrow = 1)
+networklevel(ph, index = c("links per species", "linkage density", "Shannon diversity", "vulnerability", "generality"), weighted = TRUE)
+mean(c(3,1,3,1))
 ```
 
 
@@ -403,10 +489,26 @@ grid.arrange(vLG.height.mean.plot, rG.height.mean.plot, aSG.height.mean.plot, SG
 Here, we evaluate the assumptions of mvabund and see which error distribution is appropriate. Specifically, we first look at a plot of the mean-variance relationship of our response variables. It is easy to see that the negative binomial model (black line) provides the best fit to this data, suggesting that we should specify this as the error distribution in our model
 ```{r mv abund interactions explore}
 full.mvabund <- mvabund(full.df[ ,interaxns_noPont]) # create mvabund object for easy analysis
-meanvar.plot(full.mvabund ~ full.df$Genotype) # easy to see that the data do not have a poisson distribution, therefore, a negative binomial may be a good fit.
+full.meanvar <- meanvar.plot(full.mvabund ~ full.df$Genotype, table = TRUE) # easy to see that the data do not have a poisson distribution, therefore, a negative binomial may be a good fit.
 poisson_curve(from = 0.1, to = 3.0, color = "blue")
 quasipoisson_curve(from = 0.1, to = 3.0, quasi.scalar = 2, color = "red")
 neg.binomial_curve(from = 0.1, to = 3.0, theta.negbin = 0.7, color = "black") # negative binomial appears to provide the best fit to this relationship
+
+no.relationships <- which(names(colSums(full.mvabund)) %in% c("rG_Lestodip", "rG_Mesopol", "SG_Platy", "vLG_Eulo"))
+sum(colSums(full.mvabund)[no.relationships])/sum(colSums(full.mvabund)) # less than 13% of the links in the network had relationships to gall abundance and size (see results below)
+```
+
+Analysis of dissimilarity in interaction composition
+```{r}
+links <- full.df[ ,interaxns_noPont] 
+link_abund <- rowSums(links)
+
+links.dist <- cbind.data.frame(Genotype = full.df$Genotype, links) %>%
+  filter(link_abund > 0, Genotype %in% c("*","A","B","D","E","F","I","K","L","Q","S","T","V","W","X","Y","Z"))
+
+links.geno.dist <- meandist(vegdist(links.dist[ ,-1], "bray"), links.dist$Genotype)
+summary(links.geno.dist) # on average, gall communities were 57% dissimilar from each other
+plot(links.geno.dist, cluster = "ward")
 ```
 
 ```{r genotype level}
@@ -480,7 +582,64 @@ Given that a negative binomial distribution seems to provide a good fit to the d
 From the table, it is clear to say that genotype has a strong effect on the composition of links in the network. Moreover, differences in community composition are driven primarily by 3 interactions: vLG_Platy, vLG_Tory, and vLG_Mesopol.
 ```{r}
 anova.full <- anova.manyglm(manyglm.full, p.uni = "unadjusted") # Takes about 1 min and 30 sec to run.
-anova.full # vLG_Platy, vLG_Tory, and vLG_Mesopol are driving the community response. rG_Tory is marginally significant and vLG_Eulo is close to marginal as well.
+anova.full # vLG_Platy, vLG_Tory, and vLG_Mesopol are driving the community response. rG_Tory is marginally significant and vLG_Eulo is close to marginal as well. aSG_Tory is significant as well.
+```
+
+```{r}
+full.mean <- cbind.data.frame(Genotype = full.df$Genotype, full.mvabund) %>%
+  group_by(Genotype) %>%
+  summarise_each(funs(mean.narm = mean(., na.rm = TRUE)))
+
+# calculate average dissimilarity in link community composition among willow genotypes using average link abundance data.
+require(vegan)
+full.mean.df.noU <- full.mean %>% filter(Genotype != "U") # genotype U never had any interactions
+full.mean.bray <- vegdist(select(full.mean.df.noU, -Genotype), method = "bray")
+mean(full.mean.bray) # on average, link composition was 77% dissimilar from each other.
+sd(full.mean.bray)
+range(full.mean.bray)
+
+plot(hclust(full.mean.bray, method = "average"), labels = full.mean.df.noU$Genotype)
+#NMDS <- metaMDS(comm = select(full.mean.df.noU, -Genotype), distance = "bray")
+#plot(NMDS, type = "t")
+
+require(tidyr)
+beta_partition_lists <- as.data.frame(full.mean.df.noU) %>%
+  gather(key = Genotype, value = link_abund, aSG_Tory:vLG_Tory) %>% # why don't variable and value columns change?
+  #mutate(variable = as.character(variable)) %>%
+  separate(variable, into = c("Gall","Parasitoid"), sep = "_") %>%
+  filter(value > 0) %>%
+  cast(Gall ~ Parasitoid | Genotype, sum) # note that sum function doesn't do anything. I'm just reshaping the dataframe into multiple lists.
+beta_partition_lists <- beta_partition_lists[-21]
+
+for(i in 1:length(beta_partition_lists)) {
+  rownames(beta_partition_lists[[i]]) <- as.character(beta_partition_lists[[i]]$Gall) # change row names to gall specie names
+  beta_partition_lists[[i]] <- as.data.frame(select(beta_partition_lists[[i]], -Gall)) # remove gall.sp as a column of data. Turning this into a matrix is important for easier analysis with betalink package
+  beta_partition_lists[[i]] <- as.matrix(beta_partition_lists[[i]])  # need to be converted into matrices for "as.table" function to work for quantitative data.
+}
+
+### Beta-diversity of interaction network analysis
+source('~/Documents/betalink/R/betalink.R')
+source('~/Documents/betalink/R/vec2data.frame.R')
+source('~/Documents/betalink/R/measures.r')
+source('~/Documents/betalink/R/betalink.b.r')
+source('~/Documents/betalink/R/betalink.dist.r')
+source('~/Documents/betalink/R/betalink.q.R')
+
+# Betalink Quantitative
+betalink_quantitative <- betalink.dist(beta_partition_lists, bf = "bray", triangular = T) #
+betalink_qualitative <- betalink.dist(beta_partition_lists, bf = B01, triangular = T)
+
+mean(betalink_quantitative$WN) # 77% dissimilarity with bray
+mean(betalink_qualitative$WN) # 63% dissimilarity with whittaker
+
+mean(betalink_quantitative$OS) # 33% with bray
+mean(betalink_qualitative$OS) # 6% with whittaker
+
+mean(betalink_quantitative$ST) # 44% with bray
+mean(betalink_qualitative$ST) # 57% with whittaker
+
+mean(betalink_quantitative$contrib) # species turnover contributes to 53% of the dissimilarity in interaction networks, according to bray-curtis
+mean(betalink_qualitative$contrib) # species turnover contributes to 86% of the dissimilarity in interaction networks, according to whittaker index on qualitative data.
 ```
 
 Now we examine how variation in gall densities and gall size (for Iteomyia) affects the network.
@@ -490,6 +649,7 @@ First we created a dataset that contained complete observations of the network a
 full.predictors <- full.df %>%
   select(aSG_Tory:rG_Platy, rG_Tory, SG_Platy, vLG_Eulo:vLG_Tory, # interactions
          aSG_abund:vLG_abund, # gall counts. Exclusing SG_abund because it didn't vary among genotypes
+         Genotype, # keeping for later analysis
          vLG.height.mean) %>% # Iteomyia gall size
 # we transformed some of the variables so we could examine their vif 
   mutate(log.vLG_abund = log(vLG_abund),
@@ -509,8 +669,20 @@ vif(full.predictors[ ,c("log.1.aSG_abund","log.1.rG_abund","log.vLG_abund","log.
 We log transformed all predictor variables because it provided a much better fit to the data as determined by AIC. We then used AIC to compare our most complex model to our least complex. Instead of exploring all possible combinations, we started with the most complex model and used AIC to drop predictor variables with the lowest AIC values (i.e. least impact on removal). Using AIC, we identified 3 equivalenet models (difference in AIC < 2.1 amongst models). 
 ```{r AIC model assessment}
 net.trait <- mvabund(full.predictors[ ,interaxns_noPont])
-net.trait.sub <- mvabund(full.predictors[ ,c("vLG_Platy","vLG_Mesopol","vLG_Tory","rG_Tory")])
+
+interactions <- full.predictors[ ,interaxns_noPont]
+interactions[interactions > 0] <- 1
+
+net.trait.sub <- mvabund(interactions)
 # even though manyglm doesn't appear to test interaction terms appropriately (sequential vs. dropping different terms), there is not interactive effect of vLG height and vLG abundance in univariate negative binomial models for any vLG_parasitoid interaction, so I believe this final model is appropriate for the data.
+net.mvabund.pres <- manyglm(net.trait.sub ~ log.vLG_abund + vLG.height.mean + log.1.rG_abund + log.1.aSG_abund, data = full.predictors, family = "binomial")
+plot(net.mvabund.pres, which = 1:3)
+anova.qual <- anova(net.mvabund.pres, p.uni = "unadjusted")
+anova.qual
+
+summary(glm(cbind(rG_Tory, rG_Platy + rG_Eulo + rG_Lestodip + rG_Mesopol) ~ vLG.height.mean, data = full.predictors, family = "binomial"))
+visreg(glm(cbind(vLG_Tory, vLG_Platy + vLG_Eulo + vLG_Mymarid + vLG_Mesopol) ~ vLG.height.mean + vLG_abund, data = full.predictors, family = "binomial"), scale = "response")
+
 net.mvabund.1.full <- manyglm(net.trait ~ log.vLG_abund*vLG.height.mean + 
                          log.1.rG_abund + log.1.aSG_abund,
                        data = full.predictors,
@@ -552,12 +724,17 @@ anova.manyglm(net.mvabund.1.full, net.mvabund.2, net.mvabund.3, net.mvabund.4, n
 After deciding on the model with all main effects and no interactions, we examined the residuals and everything looked pretty good.
 ```{r}
 plot(net.mvabund.2, which = 1:3) # residuals look pretty good.
+
+plot(MASS::glm.nb(vLG_Platy ~ vLG_abund + vLG.height.mean, full.predictors))
 ```
 
 We then examined the which processes underlied variation in the gall-parasitoid interactions.
 ```{r}
 anova.net <- anova.manyglm(net.mvabund.2, p.uni = "unadjusted") # takes about 2.5 min to run.
-anova.net # not that since the P-values are determined by a resampling procedure, they may differ slightly between runs. Therefore, we retain all P-values < 0.10 (during at least one run) for the coefficient summary below. 
+anova.net # not that since the P-values are determined by a resampling procedure, they may differ slightly between runs. Therefore, we retain all P-values < 0.10 (during at least one run) for the coefficient summary below.
+
+anova.net.null <- anova.manyglm(net.mvabund.2, net.mvabund.6.null) # takes about 30 sec to run
+anova.net.null
 
 sig.coef.df.2 <- mutate(melt(coef(net.mvabund.2)),
                predictor_response = paste(X1, X2, sep = "_")) %>%
@@ -568,15 +745,215 @@ sig.coef.df.2 <- mutate(melt(coef(net.mvabund.2)),
                                  "log.1.rG_abund_rG_Lestodip", # marginal
                                  "log.vLG_abund_SG_Platy", # marginal
                                  "log.vLG_abund_vLG_Mymarid",
-                                 "log.vLG.height.mean_vLG_Eulo", # marginal
-                                 "log.vLG.height.mean_rG_Tory", "log.1.rG_abund_rG_Tory",
-                                 "log.vLG_abund_vLG_Mesopol", "log.vLG.height.mean_vLG_Mesopol", 
-                                 "log.vLG.height.mean_vLG_Platy", "log.vLG_abund_vLG_Platy",
-                                 "log.vLG.height.mean_vLG_Tory", "log.vLG_abund_vLG_Tory")) %>% # vLG.height.mean is marginal for vLG_Tory
+                                 "vLG.height.mean_vLG_Eulo", # marginal
+                                 "vLG.height.mean_rG_Tory", "log.1.rG_abund_rG_Tory",
+                                 "vLG_abund_vLG_Mesopol", "vLG.height.mean_vLG_Mesopol", 
+                                 "vLG.height.mean_vLG_Platy", "log.vLG_abund_vLG_Platy",
+                                 "vLG.height.mean_vLG_Tory", "log.vLG_abund_vLG_Tory")) %>% # vLG.height.mean is marginal for vLG_Tory
   select(predictor = X1, response = X2, coefficient = value)
 arrange(sig.coef.df.2, predictor, response)
+1 - exp(-0.2157298) # 19% decrease in vLG_Platy interaction with every one unit increase in gall size.
+1 - exp(-0.2697011) # 24% decrease in vLG_Mesopolobous interaction with every one unit increase in gall size.
 ```
 
+The results from the link composition analysis suggest that increases in gall abundance lead to increasing food web complexity for those individual nodes, whereas differences in leaf gall size lead to fundamental differences in link composition.
+
+
+```{r}
+row.count <- dim(full.predictors)[1]
+arrange(full.predictors, vLG.height.mean)$vLG.height.mean
+
+## generate a data frame that varies on Iteomyia abundance but holds all other variables constant at their means.
+predict.log.vLG_abund <- with(full.predictors,
+                              data.frame(log.vLG_abund = seq(from = min(log.vLG_abund),
+                                                             to = max(log.vLG_abund),
+                                                             length.out = row.count),
+                                         vLG.height.mean = rep(mean(vLG.height.mean), row.count),
+                                         log.1.rG_abund = rep(mean(log.1.rG_abund), row.count),
+                                         log.1.aSG_abund = rep(mean(log.1.aSG_abund), row.count)))
+
+## predict link abundance based on the Iteomyia abundance variation.
+log.vLG_abund.predict <- predict(net.mvabund.2, 
+                       newdata = predict.log.vLG_abund, 
+                       type = "response", se.fit = TRUE) 
+colnames(log.vLG_abund.predict$se.fit) <- colnames(log.vLG_abund.predict$fit) # set column names for SE
+log.vLG_abund.fit.df <- cbind.data.frame(log.vLG_abund.predict$fit, 
+                                             predict.log.vLG_abund)
+log.vLG_abund.SE.df <- cbind.data.frame(log.vLG_abund.predict$se.fit,
+                                        predict.log.vLG_abund)
+log.vLG_abund.predict.df <- rbind.data.frame(log.vLG_abund.fit.df,
+                                             log.vLG_abund.SE.df) %>%
+  mutate(type = c(rep("predict", row.count),
+                  rep("SE", row.count))) %>%
+  select(-log.1.aSG_abund, -log.1.rG_abund, -vLG.height.mean) %>%
+  melt(id.vars = c("type","log.vLG_abund")) %>%
+  spread(type, value)
+
+ggplot(data = filter(log.vLG_abund.predict.df, 
+                     variable %in% c("vLG_Platy","vLG_Mesopol","vLG_Tory")),
+       aes(x = exp(log.vLG_abund), y = predict)) + 
+  geom_line(aes(color = variable)) +
+  geom_ribbon(aes(ymax = predict + SE, ymin = predict - SE, fill = variable), alpha = 0.25) +
+  ylab("Link density (#/branch)") + xlab("Leaf gall midge density (#/branch)")
+
+
+## generate a data frame that varies on Iteomyia diameter but holds all other variables constant at their means.
+predict.vLG.height.mean <- with(full.predictors,
+                              data.frame(vLG.height.mean = seq(from = min(vLG.height.mean),
+                                                             to = max(vLG.height.mean),
+                                                             length.out = row.count),
+                                         log.vLG_abund = rep(mean(log.vLG_abund), row.count),
+                                         log.1.rG_abund = rep(mean(log.1.rG_abund), row.count),
+                                         log.1.aSG_abund = rep(mean(log.1.aSG_abund), row.count)))
+
+## predict link abundance based on the Iteomyia diameter variation.
+vLG.height.mean.predict <- predict(net.mvabund.2, 
+                       newdata = predict.vLG.height.mean, 
+                       type = "response", se.fit = TRUE) 
+colnames(vLG.height.mean.predict$se.fit) <- colnames(vLG.height.mean.predict$fit) # set column names for SE
+vLG.height.mean.fit.df <- cbind.data.frame(vLG.height.mean.predict$fit, 
+                                             predict.vLG.height.mean)
+vLG.height.mean.SE.df <- cbind.data.frame(vLG.height.mean.predict$se.fit,
+                                        predict.vLG.height.mean)
+vLG.height.mean.predict.df <- rbind.data.frame(vLG.height.mean.fit.df,
+                                             vLG.height.mean.SE.df) %>%
+  mutate(type = c(rep("predict", row.count),
+                  rep("SE", row.count))) %>%
+  select(-log.1.aSG_abund, -log.1.rG_abund, -log.vLG_abund) %>%
+  melt(id.vars = c("type","vLG.height.mean")) %>%
+  spread(type, value)
+
+ggplot(data = filter(vLG.height.mean.predict.df, 
+                     variable %in% c("vLG_Platy","vLG_Mesopol","vLG_Tory","rG_Tory")),
+       aes(x = vLG.height.mean, y = predict)) + 
+  geom_line(aes(color = variable)) +
+  geom_ribbon(aes(ymax = predict + SE, ymin = predict - SE, fill = variable), alpha = 0.25) +
+  ylab("Link density (#/branch)") + xlab("Leaf gall diameter (mm)")
+
+## generate a data frame that varies on bud gall density but holds all other variables constant at their means.
+predict.log.1.rG_abund <- with(full.predictors,
+                              data.frame(log.1.rG_abund = seq(from = min(log.1.rG_abund),
+                                                             to = max(log.1.rG_abund),
+                                                             length.out = row.count),
+                                         log.vLG_abund = rep(mean(log.vLG_abund), row.count),
+                                         vLG.height.mean = rep(mean(vLG.height.mean), row.count),
+                                         log.1.aSG_abund = rep(mean(log.1.aSG_abund), row.count)))
+
+## predict link abundance based on the bud gall variation.
+log.1.rG_abund.predict <- predict(net.mvabund.2, 
+                       newdata = predict.log.1.rG_abund, 
+                       type = "response", se.fit = TRUE) 
+colnames(log.1.rG_abund.predict$se.fit) <- colnames(log.1.rG_abund.predict$fit) # set column names for SE
+log.1.rG_abund.fit.df <- cbind.data.frame(log.1.rG_abund.predict$fit, 
+                                             predict.log.1.rG_abund)
+log.1.rG_abund.SE.df <- cbind.data.frame(log.1.rG_abund.predict$se.fit,
+                                        predict.log.1.rG_abund)
+log.1.rG_abund.predict.df <- rbind.data.frame(log.1.rG_abund.fit.df,
+                                             log.1.rG_abund.SE.df) %>%
+  mutate(type = c(rep("predict", row.count),
+                  rep("SE", row.count))) %>%
+  select(-log.1.aSG_abund, -vLG.height.mean, -log.vLG_abund) %>%
+  melt(id.vars = c("type","log.1.rG_abund")) %>%
+  spread(type, value)
+
+ggplot(data = filter(log.1.rG_abund.predict.df, 
+                     variable %in% c("rG_Tory","rG_Eulo")),
+       aes(x = exp(log.1.rG_abund), y = predict)) + 
+  geom_line(aes(color = variable)) +
+  geom_ribbon(aes(ymax = predict + SE, ymin = predict - SE, fill = variable), alpha = 0.25) +
+  ylab("Link density (#/branch)") + xlab("Bud gall density (#/branch)")
+
+## NOTE THAT IT IS N'T WORKING TO HAVE THE RAW DATA BECAUSE THE SEQUENCE DATA OF THE PREDICTOR VARIABLE MAY HAVE SOME OVERLAPPING VALUES IN ITS ORIGINAL FORM.
+
+## generate a data frame that varies on Iteomyia diameter but holds all other variables constant at their means.
+#log.1.aSG_abund.seq <- arrange(full.predictors, log.1.aSG_abund)$log.1.aSG_abund
+#log.1.aSG_abund.OG <- arrange(full.predictors, log.1.aSG_abund)[ ,interaxns_noPont]
+predict.log.1.aSG_abund <- with(full.predictors,
+                              data.frame(log.1.aSG_abund = seq(from = min(log.1.aSG_abund),
+                                                               to = max(log.1.aSG_abund),
+                                                               length.out = row.count),
+                                         log.vLG_abund = rep(mean(log.vLG_abund), row.count),
+                                         vLG.height.mean = rep(mean(vLG.height.mean), row.count),
+                                         log.1.rG_abund = rep(mean(log.1.rG_abund), row.count)))
+
+## predict link abundance based on the Iteomyia diameter variation.
+log.1.aSG_abund.predict <- predict(net.mvabund.2, 
+                       newdata = predict.log.1.aSG_abund, 
+                       type = "response", se.fit = TRUE) 
+colnames(log.1.aSG_abund.predict$se.fit) <- colnames(log.1.aSG_abund.predict$fit) # set column names for SE
+#log.1.aSG_abund.OG.df <- cbind.data.frame(log.1.aSG_abund.OG,
+          #                                predict.log.1.aSG_abund)
+log.1.aSG_abund.fit.df <- cbind.data.frame(log.1.aSG_abund.predict$fit, 
+                                             predict.log.1.aSG_abund)
+log.1.aSG_abund.SE.df <- cbind.data.frame(log.1.aSG_abund.predict$se.fit,
+                                        predict.log.1.aSG_abund)
+log.1.aSG_abund.predict.df <- rbind.data.frame(#log.1.aSG_abund.OG.df,
+                                               log.1.aSG_abund.fit.df,
+                                             log.1.aSG_abund.SE.df) %>%
+  mutate(type = c(#rep("OG", row.count),
+                  rep("predict", row.count),
+                  rep("SE", row.count))) %>%
+  select(-log.1.rG_abund, -vLG.height.mean, -log.vLG_abund) %>%
+  melt(id.vars = c("type","log.1.aSG_abund")) %>%
+  spread(type, value) # was getting an error about duplicate row identifiers, but it seems to be okay..
+
+ggplot(data = filter(log.1.aSG_abund.predict.df, 
+                     variable %in% c("aSG_Tory")),
+       aes(x = exp(log.1.aSG_abund), y = predict)) + 
+  geom_line(aes(color = variable)) +
+  geom_ribbon(aes(ymax = predict + SE, ymin = predict - SE, fill = variable), alpha = 0.25) +
+  ylab("Link density (#/branch)") + xlab("apical-Stem gall density (#/branch)")
+
+# incorrectly plot the data with all of the points...not controlling for any other predictors though which are important...
+test <- dplyr::select(full.predictors, vLG.height.mean, log.vLG_abund, log.1.rG_abund, vLG_Tory, vLG_Platy, vLG_Mesopol, rG_Tory, rG_Eulo)
+test2 <- melt(as.data.frame(test), id.vars = c("vLG.height.mean", "log.vLG_abund", "log.1.rG_abund"))
+test2 <- mutate(test2, value.bin = ifelse(value > 0, 1, 0))
+test2 <- mutate(test2, log.vLG.cut = ifelse(log.vLG_abund < 1.343, 0, 1))
+
+summary(full.predictors$log.vLG_abund)
+
+library(MASS)
+ggplot(filter(test2, variable %in% c("vLG_Tory","vLG_Platy","vLG_Mesopol")), aes(x = vLG.height.mean, y = value, color = factor(log.vLG.cut))) + geom_point() + geom_smooth(method = "glm.nb") + facet_wrap( ~ variable, ncol = 3)
+ggplot(filter(test2, variable %in% c("vLG_Tory","vLG_Platy","vLG_Mesopol","rG_Tory")), aes(x = vLG.height.mean, y = value.bin)) + geom_point() + geom_smooth(method = "glm", family = "binomial") + facet_wrap( ~ variable, ncol = 1)
+
+test3 <- glmer(vLG_Platy ~ vLG.height.mean + log(vLG_abund) + (1|Genotype), full.predictors, family = poisson)
+overdisp_fun(test3) # no overdispersion
+summary(test3)
+plot(test3) # residuals don't look great though
+visreg(test3, scale = "response", partial = TRUE) # why is the vLG_Platy point so high with the vLG_abund? It is impossible...but may suggest poor model fit, since these are the partial residual plots (ref: https://github.com/pbreheny/visreg/issues/1). Note however, that this issue is much improved when I used a genearlized linear mixed effects models
+```
+
+```{r}
+full.df$vLG_link_rich <- rowSums(with(full.df, cbind(vLG_Platy, vLG_Tory, vLG_Mesopol, vLG_Mymarid)) > 0)
+full.df$rG_link_rich <- rowSums(with(full.df, cbind(rG_Platy, rG_Tory, rG_Mesopol, rG_Lestodip)) > 0)
+full.df$vLG_link_div <- diversity(with(full.df, cbind(vLG_Platy, vLG_Tory, vLG_Mesopol, vLG_Mymarid)))
+full.df.sub <- full.df %>%
+  filter(vLG_abund > 0) %>%
+  mutate(vLG_abund.sub.log = log(vLG_abund))
+ggplot(full.df.sub, aes(x = vLG_abund, y = vLG_link_rich)) + geom_point() + geom_smooth(method = "glm", family = "poisson") + scale_y_continuous(lim = c(0,3.5))
+
+summary(glm(vLG_link_rich ~ log(vLG_abund), filter(full.df, vLG_abund > 0), family = poisson))
+summary(glm(rG_link_rich ~ (rG_abund), filter(full.df, rG_abund > 0), family = poisson), scale = "response")
+exp(0.11037)
+
+rare.df <- full.df %>%
+  mutate(vLG_link_abund = vLG_Platy + vLG_Tory + vLG_Mesopol + vLG_Mymarid) %>%
+  filter(vLG_link_abund > 1) %>%
+  mutate(vLG_link_rarerich = rarefy(cbind(vLG_Platy, vLG_Tory, vLG_Mesopol, vLG_Mymarid), 2)-1)
+ggplot(rare.df, aes(x = vLG_abund, y = vLG_link_rarerich)) + geom_point() + geom_smooth(method = "lm")
+summary(lm(vLG_link_rarerich ~ vLG_abund, rare.df))
+
+anova(glm(vLG_link_rich ~ Genotype, full.df, family = poisson), test = "Chi")
+vLG_link_rich.abund <- glm(vLG_link_rich ~ vLG_abund, filter(full.df, vLG_abund > 0), family = poisson)
+summary(vLG_link_rich.abund)
+dfun(vLG_link_rich.abund)
+visreg(vLG_link_rich.abund, scale = "response")
+plot(vLG_link_rich ~ vLG_abund, filter(full.df, vLG_abund > 0))
+
+plus.links <- rowSums(full.df[ ,interaxns_noPont])
+rarecurve(filter(full.df[,interaxns_noPont], plus.links > 0))
+visreg(glm(link_richness ~ log(link_abund), filter(full.df, link_abund > 0), family = poisson), scale = "response")
+```
 
 ```{r Interaction predictions}
 # calculate the mean values, on the original scale, of all predictor variables
@@ -796,9 +1173,9 @@ visreg(vLG_Platy.glmer, scale = "response")
 ## Examine whether the proportion of galls parasitized varies among willow genotypes
 
 ## vLG parasitism
-vLG.ptized.df <- full.df %>%
-  filter(vLG_abund > 0)
-table(vLG.ptized.df$Genotype)
+vLG.ptized.df <- full.predictors %>%
+  mutate(vLG_parasitized = vLG_Tory + vLG_Eulo + vLG_Platy + vLG_Mesopol + vLG_Mymarid)
+table(vLG.ptized.df$Genotype) # data is unbalanced, but this doesn't qualitatively affect the outcome of the glm.
 vLG.ptized.3plus.genos <- c("*","B","D","E","F","H","I","K","L","O","S","V","X","Y","Z")
 colSums(vLG.ptized.df[ ,c("vLG_parasitized","vLG_abund","vLG_Tory","vLG_Eulo","vLG_Platy",
                          "vLG_Mesopol","vLG_Mymarid")])
@@ -807,12 +1184,29 @@ colSums(vLG.ptized.df[ ,c("vLG_parasitized","vLG_abund","vLG_Tory","vLG_Eulo","v
 vLG.ptized.bin <- glm(cbind(vLG_parasitized, vLG_abund - vLG_parasitized) ~ Genotype,
                   data = filter(vLG.ptized.df, Genotype %in% vLG.ptized.3plus.genos), 
                   family = 'binomial')
-anova(glm.binomial.disp(vLG.ptized.bin), test = "LR") # just significant, when I account for overdispersion using this method...
+summary(vLG.ptized.bin)
+dfun(vLG.ptized.bin)
+anova(vLG.ptized.bin, test = "LR")
+require(dispmod)
+anova(glm.binomial.disp(vLG.ptized.bin), test = "LR") # still significant after accounting for overdispersion
+visreg(vLG.ptized.bin, scale = "response")
+
+vLG.ptized.pred <- glm(cbind(vLG_parasitized, vLG_abund - vLG_parasitized) ~ vLG.height.mean,
+                  data = vLG.ptized.df,
+                  family = 'binomial')
+summary(vLG.ptized.pred)
+1-exp(coef(vLG.ptized.pred)[2]) # 25% reduction in the oddes of vLG being parasitized with every one unit increase in gall size.
+dfun(vLG.ptized.pred) # overdispersion
+anova(glm.binomial.disp(vLG.ptized.pred), test = "LR")
+require(visreg)
+visreg(vLG.ptized.pred, scale = "response")
+
 
 vLG.ptized.bin.glmer <- glmer(cbind(vLG_parasitized, vLG_abund - vLG_parasitized) ~ (1|Genotype),
-                  data = filter(vLG.ptized.df, Genotype %in% vLG.ptized.3plus.genos), 
+                  data = vLG.ptized.df, # not removing Genotypes with less than 2 replicates
                   family = 'binomial')
 overdisp_fun(vLG.ptized.bin.glmer)
+summary(vLG.ptized.bin.glmer)
 
 test.2 <- rpt.binomGLMM.add(y = with(vLG.ptized.df, cbind(vLG_parasitized, vLG_abund - vLG_parasitized)), groups = vLG.ptized.df$Genotype) 
 test.2

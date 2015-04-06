@@ -3,8 +3,9 @@
 ## Email: barbour@zoology.ubc.ca
 
 ## upload packages for data manipulation. order of libraries is important. always load dplyr last.
-library(reshape2)
 library(reshape)
+library(reshape2)
+
 library(plyr)
 library(dplyr)
 
@@ -162,7 +163,7 @@ tree_level_gall.count.cast <- dcast(tree_level_gall.size.df, Genotype + plant.po
 tree_level_gall.size.count.join <- left_join(tree_level_gall.size.cast, tree_level_gall.count.cast)
 
 ## merge interaction and tree-trait data
-tree_level_interaxn_all_plants_traits_size <- join_all(list(tree_level_interaxn_all_plants, tree_level_traits, tree_level_gall.size.count.join), by = "plant.position") %>%
+tree_level_interaxn_all_plants_traits_size <- join_all(list(tree_level_interaxn_all_plants, tree_level_traits, tree_level_gall.size.count.join)) %>%
   tbl_df()
 
 write.csv(tree_level_interaxn_all_plants_traits_size, '~/Documents/Genotype_Networks/data/tree_level_interaxn_all_plants_traits_size.csv')
