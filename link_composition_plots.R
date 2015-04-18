@@ -35,6 +35,8 @@ ABC.domptoids <- data.frame(x = rep(label.x.pos,3), y = rep(label.y.ptoids,3),
 D.ptism <- data.frame(x = label.x.pos, y = label.y.ptism, labels = "(D)")
 A.linkabund <- data.frame(x = 0.5, y = 10, labels = "(A)")
 B.ptism <- data.frame(x = 4.25, y = label.y.ptism, labels = "(B)")
+AB.ptism <- data.frame(x = rep(4.25,2), y = rep(1,2), 
+                       labels = c("(A)","(B)"), cut.vLG_abund = c("Low leaf gall abundance (1-4 per branch)", "High leaf gall abundance (5 - 22 per branch)"))
 #point.size <- 6
 line.widths <- 3 # for link plots
 ## create color-blind friendly palette with grey (taken from http://www.cookbook-r.com/Graphs/Colors_(ggplot2)/)
@@ -152,6 +154,12 @@ link.df$Parasitoid <- factor(link.df$Parasitoid, levels = c("Platygaster",
 ## order genotypes by mean leaf gall abundance
 link.df$Genotype <- factor(link.df$Genotype, levels = vLG.df.sum$Genotype)
 
+## link summary
+link.summary <- link.df %>% group_by(Genotype, Gall, Parasitoid) %>% summarise_each(funs(mean)) %>% arrange(Gall)
+max(filter(link.summary, Gall == "Leaf gall", Parasitoid == "Platygaster")$value) # 3.7
+max(filter(link.summary,  Gall == "Leaf gall", Parasitoid == "Mesopolobus")$value) # 8
+max(filter(link.summary,  Gall == "Leaf gall", Parasitoid == "Torymus")$value) # 1.4
+
 ## link composition plot for all possible interactions. For supplementary materials.
 link.composition.plot <- ggplot(link.df, aes(x = Genotype, y = value, fill = Parasitoid)) +
   facet_grid(Parasitoid ~ Gall) + 
@@ -222,17 +230,18 @@ attack.df <- as.data.frame(tree_level_interaxn_all_plants_traits_size) %>%
   select(vLG.height.mean, vLG_abund, vLG_Platy, vLG_Mesopol, vLG_Tory) %>%
   gather(vLG.height.mean, vLG_abund)
 
-platy <- glm(value/vLG_abund ~ vLG.height.mean, data = filter(attack.df, variable == "vLG_Platy"), family = 'binomial', weights = vLG_abund)
+platy <- glm(value/vLG_abund ~ vLG_abund*vLG.height.mean, data = filter(attack.df, variable == "vLG_Platy"), family = 'binomial', weights = vLG_abund)
 summary(platy)
 anova(platy, test = "Chi")
 
-mesopol <- glm(value/vLG_abund ~ vLG.height.mean, data = filter(attack.df, variable == "vLG_Mesopol"), family = 'binomial', weights = vLG_abund)
+mesopol <- glm(value/vLG_abund ~ vLG_abund*vLG.height.mean, data = filter(attack.df, variable == "vLG_Mesopol"), family = 'binomial', weights = vLG_abund)
 summary(mesopol)
 anova(mesopol, test = "Chi")
 
-tory <- glm(value/vLG_abund ~ vLG.height.mean, data = filter(attack.df, variable == "vLG_Tory"), family = 'binomial', weights = vLG_abund)
+tory <- glm(value/vLG_abund ~ vLG_abund + vLG.height.mean, data = filter(attack.df, variable == "vLG_Tory"), family = 'binomial', weights = vLG_abund)
 summary(tory)
-anova(tory, test = "Chi")
+anova(tory, test = "Chi") # be careful with order of main effect
+
 
 attack.plots <- ggplot(attack.df, aes(x = vLG.height.mean, y = value/vLG_abund, 
                       color = variable, shape = variable, linetype = variable)) + 
@@ -241,6 +250,21 @@ attack.plots <- ggplot(attack.df, aes(x = vLG.height.mean, y = value/vLG_abund,
               aes(weight = vLG_abund), se = FALSE, size = line.widths) +
   geom_text(data = B.ptism, aes(x = x, y = y, label = labels), inherit.aes = FALSE) +
   xlab("Leaf gall diameter (mm)") + ylab("Proportion parasitized") +
+  scale_color_manual(values = cbPalette[c(6,4,2)]) + 
+  theme_links 
+
+## create a plot showing how both leaf gall abundance and attack rate determine attack rates from individual parasitoid species
+attack.df$cut.vLG_abund <- cut(attack.df$vLG_abund, breaks = c(1, 4, 22), include.lowest = TRUE, labels = c("Low leaf gall abundance (1-4 per branch)", "High leaf gall abundance (5 - 22 per branch)"))
+
+ggplot(attack.df, aes(x = vLG.height.mean, y = value/vLG_abund, 
+                      color = variable, shape = variable, linetype = variable)) + 
+  geom_jitter(alpha = 0.25, size = 5, 
+              position = position_jitter(height = 0.01, width = 0)) +
+  facet_grid(. ~ cut.vLG_abund) +
+  geom_smooth(method = "glm", family = binomial, 
+              aes(weight = vLG_abund), se = FALSE, size = line.widths) + 
+  geom_text(data = AB.ptism, aes(x = x, y = y, label = labels), inherit.aes = FALSE) +
+  xlab("Leaf gall diameter (mm)") + ylab("Proportion of leaf galls parasitized") +
   scale_color_manual(values = cbPalette[c(6,4,2)]) + 
   theme_links 
 
@@ -318,6 +342,15 @@ full.links.df.sub <- filter(full.links.df[trees.with.links, ],
                             Genotype != "J",
                             Genotype != "N",
                             Genotype != "U")
+
+## analysis of dissimilarity
+adonis(full.links.df.sub[ ,all.links] ~ Genotype, data = full.links.df.sub, distance = "bray")
+anova(betadisper(vegdist(full.links.df.sub[ ,all.links], "bray"), full.links.df.sub$Genotype)) # no difference in betadiversity
+full.links.meandist <- meandist(vegdist(full.links.df.sub[ ,all.links], "bray"), full.links.df.sub$Genotype)
+summary(full.links.meandist) 
+mean(full.links.meandist[lower.tri(full.links.meandist, diag = TRUE)]) # eseentially matches summary, may be slightly different due to weightings.
+max(full.links.meandist[lower.tri(full.links.meandist, diag = TRUE)])
+min(full.links.meandist[lower.tri(full.links.meandist, diag = TRUE)])
 
 ## perform RDA analyses and extract centroid scores for plotting.
 library(vegan)

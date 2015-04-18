@@ -79,6 +79,9 @@ web.measures.summary <- all.measures %>%
   group_by(Number.of.Genotypes) %>%
   summarise(mean.complexity = mean(total_complexity, na.rm = TRUE))
 with(web.measures.summary, max(mean.complexity)/min(mean.complexity))
+with(web.measures.summary, max(mean.complexity)/single.complexity.max) # 8% higher due to complimentarity effects
+
+max(all.measures$total_complexity, na.rm = TRUE)/single.complexity.max # up to 15% higher due to complimentarity effects.
 
 ## linear model with just the mean data. 
 web.sum.lm <- lm(log(mean.complexity) ~ log(Number.of.Genotypes), data = web.measures.summary)
