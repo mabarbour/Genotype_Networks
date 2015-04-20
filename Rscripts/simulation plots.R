@@ -9,6 +9,7 @@ require(gridBase)
 ## upload results from simulation
 all.measures <- read.csv("~/Documents/Genotype_Networks/data/food web complexity simulation.csv")
 dim(all.measures)[1] # 2221 unique simulations. 2425 simulations originally run
+table(all.measures$Number.of.Genotypes)
 
 single.complexity.max <- max(filter(all.measures, Number.of.Genotypes == 1)$total_complexity, na.rm = TRUE)
 
@@ -88,7 +89,19 @@ web.sum.lm <- lm(log(mean.complexity) ~ log(Number.of.Genotypes), data = web.mea
 summary(web.sum.lm) # Need to understand interpretation here.
 visreg(web.sum.lm) # not quite there
 
+## non-linear model with just the mean data
+require(mgcv)
+web.sum.gam <- gam(mean.complexity ~ s(Number.of.Genotypes), data = web.measures.summary)
+summary(web.sum.gam)
+visreg(web.sum.gam)
+
+
 ## linear model with all of the data. 
 web.lm <- lm(log(total_complexity) ~ log(Number.of.Genotypes), data = all.measures)
 summary(web.lm)
 visreg(web.lm)
+
+## non-linear model with all of the data
+web.gam <- gam(total_complexity ~ s(Number.of.Genotypes), data = all.measures)
+summary(web.gam)
+visreg(web.gam)

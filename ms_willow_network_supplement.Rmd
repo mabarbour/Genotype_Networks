@@ -115,6 +115,25 @@ anova(betadisper(bray.gall.comm.sub, group = gall.comm.sub$Genotype)) # no diffe
 summary(meandist(bray.gall.comm.sub, grouping = gall.comm.sub$Genotype))
 ```
 
+```{r}
+gall.corrs.df <- full.df %>% select(Genotype, vLG.height.mean, vLG.gall.count, vLG_abund, rG_abund, aSG_abund)
+gall.corrs.pheno <- select(gall.corrs.df, -Genotype, -vLG.gall.count)
+library(psych)
+library(car)
+scatterplotMatrix(gall.corrs.pheno)
+corr.test(gall.corrs.pheno, use = "pairwise", method = "pearson")
+
+gall.corrs.geno <- gall.corrs.df %>%
+  group_by(Genotype) %>%
+  summarise(leaf_gall_size = weighted.mean(vLG.height.mean, vLG.gall.count, na.rm = TRUE),
+            leaf_gall_abund = mean(vLG_abund, na.rm = TRUE),
+            bud_gall_abund = mean(rG_abund, na.rm = TRUE),
+            apical_stem_gall_abund = mean(aSG_abund, na.rm = TRUE)) %>%
+  select(leaf_gall_size, leaf_gall_abund, bud_gall_abund, apical_stem_gall_abund)
+scatterplotMatrix(gall.corrs.geno)
+corr.test(gall.corrs.geno)
+```
+
 Determine which willow traits are resulting in variation in gall abundances.
 ```{r mvabund gall-trait associations, echo=FALSE}
 # selects galls and traits for analysis
