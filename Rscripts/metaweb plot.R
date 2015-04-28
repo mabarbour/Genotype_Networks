@@ -18,10 +18,27 @@ metaweb <- tree_interaxns_filter_add %>%
   select(gall.sp, Eulo:Platy, Tory, gall.surv)
 rownames(metaweb) <- metaweb$gall.sp
 
+gall_ptoid_web <- select(metaweb, gall.sp:Platy) %>%
+  melt() %>%
+  select(Lower = gall.sp, Upper = variable, trophic.link.quantity = value)
+
+willow_gall_web <- t(metaweb$gall.surv)
+rownames(willow_gall_web) <- "willow"
+colnames(willow_gall_web) <- rownames(metaweb)
+
+willow_gall_web.melt <- melt(willow_gall_web) %>%
+  select(Lower = X1, Upper = X2, trophic.link.quantity = value)
+
+full.web <- rbind(willow_gall_web.melt, gall_ptoid_web)
+
+
+tripartite_plot_info
+
 # get plot info
 metaweb.info <- bipartite_plot_info(select(metaweb, Eulo:Tory), order.type = "cca")
 
 interaction.df <- metaweb.info[[1]] %>%
+  mutate(x = as.numeric(x), y = as.numeric(y)) %>%
   filter(Sequence == 500 | Sequence == 1) %>%
   reshape(idvar = "Group", timevar = "Sequence", direction = "wide") %>%
   mutate(weight.trans = Weight.1) # unscaled weights

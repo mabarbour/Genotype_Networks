@@ -384,5 +384,92 @@ text(x = -1.5, y = 3, labels = "(B)")
 
 #dev.off() # turn off pdf device.
 
+## Create metaweb
+
+gall.ptoid <- as.data.frame(tree_level_interaxn_all_plants_traits_size) %>%
+  select(aSG_Tory:rG_Platy, rG_Tory, SG_Platy, vLG_Eulo:vLG_Tory) %>%
+  summarise_each(funs(sum)) %>%
+  gather() %>%
+  separate(col = variable, into = c("lower","upper"), sep = "_")
+
+willow.gall <- as.data.frame(tree_level_interaxn_all_plants_traits_size) %>%
+  select(aSG_abund:SG_abund) %>%
+  summarise_each(funs(sum)) %>%
+  gather() %>%
+  separate(col = variable, into = c("upper","lower"), sep = "_") %>%
+  mutate(lower = "willow") %>%
+  select(lower, upper, value)
+
+metaweb <- rbind(willow.gall, gall.ptoid) %>%
+  spread(upper, value, fill = 0)
+rownames(metaweb) <- metaweb$lower
+metaweb <- select(metaweb, -lower)
+
+graph.adjacency(as.matrix(metaweb))
+
+# turn into graph
+metaweb.graph <- graph.edgelist(as.matrix(metaweb)[,1:2])
+E(metaweb.graph)$weight <- metaweb$value
+#E(mods.graph)$module.id <- mods$module # not necessary right now
+
+metaweb.adj <- get.adjacency(metaweb.graph, sparse = F, attr = "weight")
+gplot(metaweb.adj)
+
+metaweb.info <- tripartite_plot_info(metaweb.graph)
+
+interaction.df <- metaweb.info[[1]] %>%
+  mutate(x = as.numeric(x), y = as.numeric(y)) %>%
+  filter(Sequence == 500 | Sequence == 1) %>%
+  reshape(idvar = "Group", timevar = "Sequence", direction = "wide") %>%
+  mutate(weight.trans = Weight.1) # unscaled weights
+
+nodeinfo.df <- metaweb.info[[2]]# %>%
+  #mutate(guild = factor(c(rep("gall", 4),
+  #                        "Predator",
+  #                        rep("Larval\nparasitoid", 3),
+  #                        rep("Egg\nparasitoid", 2))),
+   #      names = c("Cecidomyiid",
+    #               "Rab. (bud)",
+     #              "Iteomyia",
+      #             "Rab. (stem)",
+       #            "Lestodiplosis", "Torymus", "Eulophid", "Mesopolobus", "Platygaster", "Mymarid"))
+
+new_theme_empty <- theme_bw()
+new_theme_empty$line <- element_blank()
+new_theme_empty$rect <- element_blank()
+new_theme_empty$strip.text <- element_blank()
+new_theme_empty$axis.text <- element_blank()
+new_theme_empty$plot.title <- element_blank()
+new_theme_empty$axis.title <- element_blank()
+new_theme_empty$plot.margin <- structure(c(2, 2, 2, 2), unit = "lines", # c(0,0,-1,-1) # 1,1,1,1
+                                         valid.unit = 3L, class = "unit")
+
+
+metaweb.plot <- ggplot(interaction.df) + 
+  geom_segment(data = interaction.df, aes(x = x.1, xend = x.500, y = y.1, yend = y.500),
+               color = "grey",
+               size = interaction.df$weight.trans/max(interaction.df$weight.trans)*25,
+               alpha = 0.75)  +
+  new_theme_empty + 
+  geom_point(data = nodeinfo.df, aes(x = x, y = y, fill = vertex.names),
+             color = "black",
+             #shape = 25,
+             size = 1, show_guide = FALSE) # + 
+  #scale_shape_manual(values = c(25, 22, 23), name = "Natural enemy guild") + 
+  #geom_text(data = filter(nodeinfo.df, y > 1), aes(x = x, y = y + 0.15, label = names), size = 6) +  
+  #geom_point(data = filter(nodeinfo.df, y == 1), aes(x = x, y = y, fill = vertex.names),
+   #          color = "black",
+    #         shape = 21,
+     #        size = 30) + 
+  #scale_fill_brewer(palette = "Spectral", guide = "none") +
+  #geom_text(data = filter(nodeinfo.df, y == 1), aes(x = x, y = y - 0.15, label = names), size = 8) +
+  #theme(legend.text = element_text(size = 14),
+   #     legend.title = element_text(size = 16))
+
+#Code to override clipping
+metaweb.plot
+gt <- ggplot_gtable(ggplot_build(metaweb.plot))
+gt$layout$clip[gt$layout$name == "panel"] <- "off"
+grid.draw(gt)
 
 
