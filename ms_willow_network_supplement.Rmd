@@ -345,6 +345,8 @@ summary(size10)
 summary(size12) # final model
 summary(size9)
 
+anova(size14.null, size12)
+
 summary(lm(vLG.height.mean ~ luteolin.der2__A320nm, full.df, weights = full.df$vLG.gall.count))
 
 anova(size14.null, size13, size12, size11, size10, size9, size8, size7)
