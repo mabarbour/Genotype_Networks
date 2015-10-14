@@ -467,7 +467,7 @@ for(g in levels(sites.cap.geno$Genotype)){
                                   veganCovEllipse(ellip[[g]]$cov, ellip[[g]]$center, ellip[[g]]$scale))), Genotype = g))
 }
 
-B.compliment <- data.frame(x = -2.925, y = 2.4, labels = "(B)") # plot label
+#B.compliment <- data.frame(x = -2.925, y = 2.4, labels = "(B)") # plot label
 
 compliment <- ggplot(data = df_ell.cap.geno, aes(x = CAP1, y = CAP2, group = Genotype)) +
   coord_fixed(ratio = 1) + #, xlim= c(-3.3,3.3)) + #xlim = c(-3,3.2)
@@ -492,6 +492,7 @@ tiff("~/Documents/Genotype_Networks/figures/fig_6_complexity_complimentarity.tif
 print(total)
 print(compliment, vp = vp)
 dev.off() # turn off png device
+
 # create multipanel figure ----
 complexity <- ggplotGrob(total)#ggplot_gtable(ggplot_build(total))
 complimentarity <- ggplotGrob(compliment)#ggplot_gtable(ggplot_build(compliment))
