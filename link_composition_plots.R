@@ -4,13 +4,14 @@ source('~/Documents/ggnet/bipartite_plot_info.R')
 source('~/Documents/ggnet/tripartite_plot_info.R')
 
 require(ggplot2)
+#devtools::install_github("hadley/ggplot2")
 require(gridExtra)
 require(dplyr)
 require(tidyr)
 require(vegan)
 
 ## for an unknown reason, ggsave needs to be modified for me to save my arrangeGrob object ----
-ggsave <- ggplot2::ggsave; body(ggsave) <- body(ggplot2::ggsave)[-2]
+#ggsave <- ggplot2::ggsave; body(ggsave) <- body(ggplot2::ggsave)[-2]
 
 ## create theme for figures ----
 theme_links <- theme_bw() +
@@ -21,23 +22,23 @@ theme_links <- theme_bw() +
         strip.text = element_text(size = 9), #9
         panel.grid = element_blank(),
         legend.position = "none")
-point.size.range <- c(1,5) #c(1,5)
-point.size.range.ptism <- c(1,3.5)#c(0.5,2)
+point.size.range <- c(1,3) #c(1,5)
+point.size.range.ptism <- c(0.25,3)#c(1,3.5)
 label.x.pos <- 1.5 #2
-label.y.galls <- 23 # 21
-label.y.gallsize <- 13.75
-label.y.ptoids <- 9.5 #9.75
-label.y.ptism <- 1.05 #0.975
+label.y.galls <- c(20,16,2.6) #23 # 21
+label.y.gallsize <- 14 #13.75
+label.y.ptoids <- c(8.1,3.65,2.75) #9.5 #9.75
+label.y.ptism <- 1
 label.size <- 3 # 3
 ABCD.allgalls <- data.frame(x = rep(label.x.pos,4), y = rep(label.y.galls,4), 
                             variable = c("Leaf gall", "Apical-stem gall", 
                                          "Bud gall", "Mid-stem gall"), 
                             labels = c("(A)","(B)","(C)","(D)"))
-ABC.domgalls <- data.frame(x = rep(label.x.pos,3), y = rep(label.y.galls,3), 
+ABC.domgalls <- data.frame(x = rep(label.x.pos,3), y = label.y.galls,#3), 
                           variable = c("Leaf gall","Bud gall", "Apical-stem gall"), 
                           labels = c("(A)","(B)","(C)"))
 D.gallsize <- data.frame(x = label.x.pos, y = label.y.gallsize, labels = "(D)")
-ABC.domptoids <- data.frame(x = rep(label.x.pos,3), y = rep(label.y.ptoids,3), 
+ABC.domptoids <- data.frame(x = rep(label.x.pos,3), y = label.y.ptoids, 
                             Parasitoid = c("Platygaster", "Mesopolobus", "Torymus"), 
                             labels = c("(A)","(B)","(C)"))
 EFG.domptoids <- data.frame(x = rep(label.x.pos,3), y = rep(label.y.ptoids,3), 
@@ -53,6 +54,16 @@ AB.ptism <- data.frame(x = rep(4.25,2), y = rep(1,2),
 line.widths <- 2 # for link plots (3 for full page plots)
 ## create color-blind friendly palette with grey (taken from http://www.cookbook-r.com/Graphs/Colors_(ggplot2)/)
 cbPalette <- c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+
+## make integer breaks for facet plotting in ggplot
+library("scales")
+integer_breaks <- function(n = 5, ...) {
+  breaker <- pretty_breaks(n, ...)
+  function(x) {
+    breaks <- breaker(x)
+    breaks[breaks == floor(breaks)]
+  }
+}
 
 ## change Genotype * to C for plotting aesthetics
 levels(tree_level_interaxn_all_plants_traits_size$Genotype)[1] <- "C"
@@ -84,7 +95,7 @@ gall.dominants.plot <- ggplot(filter(gall.df, variable %in% c("Leaf gall", "Bud 
   geom_boxplot() + 
   facet_wrap( ~ variable, ncol = 1, scales = "free_y") + 
   ylab("No. of galls per branch") + xlab("") +
-  #geom_text(data = ABC.domgalls, aes(x = x, y = y, label = labels), size = label.size) +
+  geom_text(data = ABC.domgalls, aes(x = x, y = y, label = labels), size = label.size) +
   scale_fill_manual(values = cbPalette[c(7,3,1)]) +
   #scale_y_continuous(limits = c(0,25), # 0,14
    #                  breaks = seq(0,20,10)) +
@@ -150,8 +161,9 @@ gall.dom$widths[2:3] <- maxWidth
 gall.size$widths[2:3] <- maxWidth
 
 # saved as .pdf, portrait, 3.42" x 9" - fig_3_gall_specificity_PNAS
-gall_specificity <- arrangeGrob(gall.dominants.plot, leaf.gall.size, ncol = 1, 
-             heights = c(7/10, 3/10))
+gall_specificity <- arrangeGrob(gall.dominants.plot, leaf.gall.size, 
+                                 ncol = 1, heights = c(7/10, 3/10))
+
 ggsave("~/Documents/Genotype_Networks/figures/fig_3_gall_specificity_PNAS.png", gall_specificity, width = 3.42, height = 5, units = "in")# 6.48
 
 ## tidy up data for visualizing differences in link composition among genotypes. ----
@@ -194,18 +206,21 @@ max(filter(link.summary,  Gall == "Leaf gall", Parasitoid == "Torymus")$value) #
 link.dominants.plot <- ggplot(filter(link.df, Gall == "Leaf gall", 
                            Parasitoid %in% c("Platygaster", "Mesopolobus", "Torymus")), 
                     aes(x = Genotype, y = value, fill = Parasitoid)) +
-  facet_grid(Parasitoid ~ Gall) + 
+  facet_grid(Parasitoid ~ Gall, scales = "free_y") + 
   geom_boxplot() +
   geom_text(data = ABC.domptoids, aes(x = x, y = y, label = labels), 
             size = label.size) +
   scale_fill_manual(values = cbPalette[c(6,4,2)]) +
-  scale_y_continuous(limits = c(0,10), breaks = seq(0,10,5)) +
-  ylab("No. of interactions per branch") + 
+  scale_y_continuous(breaks = integer_breaks()) +
+  #scale_y_continuous(limits = c(0,10), breaks = seq(0,10,5)) +
+  ylab("No. of interactions per branch\n") + 
   xlab("") +
-  theme_links + theme(axis.text.x = element_blank(),
-                      #axis.title.y = element_text(size = 11, vjust = 1.25),
-                      plot.margin = unit(c(0.5,0.3,-0.2,0.5),"cm"),
-                      panel.margin.y = unit(0.5, "lines"))#,
+  theme_links + 
+  theme(axis.text.x = element_blank(),
+        plot.margin = unit(c(0.5,0.3,-0.2,0.5),"cm"),
+        axis.title.y = element_text(size = 11),#, 
+                                    #margin = margin(unit(1, "cm"))),
+        panel.margin.y = unit(0.5, "lines"))#,
                       #strip.text = element_text(size = 9))
 
 anova(MASS::glm.nb(vLG_Platy ~ Genotype, data = tree_level_interaxn_all_plants_traits_size),
@@ -252,8 +267,11 @@ vLG_ptized.plot <- ggplot(vLG_ptized.df.3, aes(x = Genotype, y = vLG_prop.ptized
   scale_y_continuous(limits = c(-0.1, 1.1), breaks = seq(0,1.0,0.5)) +
   geom_text(data = D.ptism, aes(x = x, y = y, label = labels), 
             inherit.aes = FALSE, size = label.size) + 
-  ylab("Prop. of galls parasitized") + xlab("Willow genotype") +
-  theme_links + theme(plot.margin = unit(c(-0.2,0.85,0.5,0.5),"cm"))#,
+  ylab("Prop. of galls parasitized\n") + xlab("Willow genotype") +
+  theme_links + 
+  theme(plot.margin = unit(c(-0.2,0.95,0.5,0.36),"cm"),
+        axis.title.y = element_text(margin = unit(c(10,1,10,3), "pt"),
+                                    vjust = 1))#unit(c(-0.2,0.85,0.5,0.5),"cm"))#,
                      # axis.title.y = element_text(size = 11, vjust = 1.25))
 
 # create multipanel figure ----
@@ -266,7 +284,8 @@ link.dom$widths[2:3] <- maxWidth
 vLG.ptized$widths[2:3] <- maxWidth
 
 # used same plotting dimensions as for gall specificity figure
-parasitism_specificity <- arrangeGrob(link.dom, vLG.ptized, ncol = 1, heights = c(7/10, 3/10))
+parasitism_specificity <- arrangeGrob(link.dominants.plot, vLG_ptized.plot, #
+                                      ncol = 1, heights = c(7/10, 3/10))
 ggsave("~/Documents/Genotype_Networks/figures/fig_4_parasitism_specificity_PNAS.png", parasitism_specificity, width = 3.42, height = 5, units = "in")#6.48
 
 ## multipanel: gall and link figure ----
@@ -832,6 +851,16 @@ genotype.trait.means <- as.data.frame(tree_level_interaxn_all_plants_traits_size
   ungroup() %>%
   as.data.frame()
 
+#trait.df <- as.data.frame(tree_level_interaxn_all_plants_traits_size) %>%
+ # select(Genotype, Total_Area:HCH.tremulacin.__A220nm,water_content:N_imputed)
+#trait.df.comp <- trait.df[complete.cases(trait.df), ]
+
+#rda.traits <- rda(trait.df.comp[ ,-1] ~ Genotype, 
+ #                 trait.df.comp,
+  #                scale = TRUE)
+#summary(rda.traits)
+#anova(rda.traits, by = "axis")
+
 rownames(genotype.trait.means) <- genotype.trait.means$Genotype
 
 std.dis <- vegdist(decostand(genotype.trait.means[ ,-1], method = "standardize"), method = "euclidean")
@@ -840,7 +869,7 @@ plot(hclust(std.dis, "ward.D2"))
 
 FD.traits <- dbFD(genotype.trait.means[ ,-1], calc.FGR = TRUE, clust.type = "kmeans")
 
-## Rarefaction analysis of gall-parasitoid interactions
+## Rarefaction analysis of gall-parasitoid interactions ----
 interactions <- as.data.frame(tree_level_interaxn_all_plants_traits_size) %>% 
   select(vLG_Platy, vLG_Mesopol, vLG_Tory, vLG_Eulo,
          vLG_Mymarid, rG_Tory, rG_Eulo, rG_Platy,
@@ -852,13 +881,28 @@ plot(spec.curve, xlab = "No. of willows sampled", ylab = "No. of unique gall-par
 
 ## correlation in leaf gall density between years
 leaf.galls <- as.data.frame(tree_level_interaxn_all_plants_traits_size) %>%
-  select(Genotype, vLG.2012.density = vLG_abund, 
-         vLG.2011, Total_Area) %>%
+  select(Genotype, plant.position, vLG.2012.density = vLG_abund, 
+         vLG.2011, Total_Area, vLG.height.mean) %>%
   mutate(vLG.2011.density = vLG.2011/Total_Area) 
+with(leaf.galls, cor.test(sqrt(vLG.2011.density), sqrt(vLG.2012.density)))
+
+leaf.galls.GxE <- leaf.galls %>%
+  select(Genotype, plant.position, vLG.2011.density, vLG.2012.density) %>%
+  melt(id.vars = c("Genotype", "plant.position")) %>%
+  mutate(plant.position = as.factor(plant.position))
+library(lmerTest)
+vLG.lmer <- lmer(log(value+1) ~ variable*Genotype + (1|plant.position), filter(leaf.galls.GxE))
+summary(vLG.lmer)
+plot(vLG.lmer)
+#0.25583/(0.25583+0.47684+0.09311+0.03098)
+anova(vLG.lmer)
+library(visreg)
+visreg(vLG.lmer, xvar = "variable", by = "Genotype")
 
 leaf.galls.summary <- leaf.galls %>%
   group_by(Genotype) %>%
   summarise_each(funs(mean.narm = mean(., na.rm = TRUE)))
+#write.csv(leaf.galls.summary, "~/Documents/Genotype_Ptoid_Phenology_Experiment/leaf gall densities and sizes 2011 and 2012.csv")
 
 ggplot(leaf.galls, aes(x = Total_Area, y = vLG.2011)) +
   geom_point() +
@@ -873,13 +917,13 @@ ggplot(leaf.galls, aes(x = sqrt(vLG.2011.density),
 plot(log(vLG.2012.density+1) ~ log(vLG.2011.density+1), leaf.galls) # interesting, negative relationship.
 anova(lm(sqrt(vLG.2012.density) ~ sqrt(vLG.2011.density) + Genotype, leaf.galls)) # don't think this makes sense...
 
-ggplot(leaf.galls.summary,
-       aes(x = log(vLG.2011.density), y = log(vLG.2012.density))) +
+ggplot(filter(leaf.galls.summary, Genotype != "X", Genotype != "R", Genotype != "K"),
+       aes(x = (vLG.2011.density), y = (vLG.2012.density))) +
   geom_text(aes(label = Genotype)) +
   geom_smooth(method = "lm")
 
 
-with(leaf.galls.summary, 
+with(filter(leaf.galls.summary, Genotype != "X", Genotype != "T"), 
      cor.test(sqrt(vLG.2012.density), 
               sqrt(vLG.2011.density), 
               method = "pearson"))
