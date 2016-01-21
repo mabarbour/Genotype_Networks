@@ -486,9 +486,9 @@ compliment <- ggplot(data = df_ell.cap.geno, aes(x = CAP1, y = CAP2, group = Gen
         plot.margin = unit(c(0,0,0,0), "in"))
 # adjust plot.margin
 
-vp <- viewport(width = 0.4, height = 0.4, x = 0.7, y = 0.35)
+vp <- viewport(width = 0.35, height = 0.35, x = 0.75, y = 0.32) #viewport(width = 0.4, height = 0.4, x = 0.7, y = 0.35)
 
-tiff("~/Documents/Genotype_Networks/figures/fig_6_complexity_complimentarity.tif", width = 3.42, height = 4, units = "in", res = 600)
+tiff("~/Documents/Genotype_Networks/figures/fig_6_complexity_complimentarity.tiff", width = 3.42, height = 4, units = "in", res = 600)
 print(total)
 print(compliment, vp = vp)
 dev.off() # turn off png device
@@ -929,3 +929,12 @@ with(filter(leaf.galls.summary, Genotype != "X", Genotype != "T"),
               sqrt(vLG.2011.density), 
               method = "pearson"))
 
+## estimating sampling effort of parasitoid community
+net.df <- select(tree_level_interaxn_all_plants_traits_size, aSG_Tory:rG_Platy, rG_Tory, SG_Platy, vLG_Eulo:vLG_Tory)
+
+specpool(net.df)
+test <- net.df %>% filter()
+specpool(select(net.df, starts_with("vLG")))
+specpool(select(net.df, starts_with("rG")))
+specpool(select(net.df, starts_with("SG")))
+specpool(select(net.df, starts_with("aSG")))
