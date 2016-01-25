@@ -1,9 +1,11 @@
-##
-## Author: Matt Barbour
+## This code replicates the analyses of the empirical data presented in the Results and Discussion and Supplementary Material of the manuscript, "Genetic specificity of a plant-insect food web: Implications for linking genetic variation to food-web complexity"
+## Code author: Matthew A. Barbour
+## Email: barbour@zoology.ubc.ca
 
 ## source in required datasets and functions ----
-source('~/Documents/Genotype_Networks/Rscripts/network_management_tree_level.R')
-source('~/Documents/miscellaneous_R/model_diagnostic_functions.R')
+#source('~/Documents/Genotype_Networks/Rscripts/network_management_tree_level.R')
+source('Rscripts/fxns_mvabund_diagnostics.R')
+#source('~/Documents/miscellaneous_R/model_diagnostic_functions.R')
 #source('~/Documents/miscellaneous_R/jensen_magnitude_function.R')
 
 ## load required libraries ----
@@ -15,12 +17,18 @@ library(vegan) # for adonis analysis
 library(mvabund) # multivariate analysis
 library(HH) # for variance inflation factor analysis (vif) in multiple regression
 library(visreg) # visualize regression output
+library(dplyr) # for dataset
 
-## create datasets for analysis ----
-full.df <- tree_level_interaxn_all_plants_traits_size 
-interaxns_noPont # all gall-parasitoid interactions used for analysis
+## load and prep datasets for analysis ----
+full.df <- read.csv('data/tree_level_interaxn_all_plants_traits_size.csv') %>% 
+  tbl_df()
+interaxns_noPont <- full.df %>%
+  select(aSG_Tory:rG_Platy, rG_Tory, SG_Platy, vLG_Eulo:vLG_Tory) %>%
+  names() # all gall-parasitoid interactions used for analysis. Excluded interactions associated with the sawfly Pontania californica.
+#full.df <- tree_level_interaxn_all_plants_traits_size 
+#interaxns_noPont # all gall-parasitoid interactions used for analysis
 
-#Testing for whether gall size varies among willow genotypes. We were unable to use the mvabund framework for this analysis, so we conducted separate linear models to test for these effects.
+# Testing for whether gall size varies among willow genotypes. We were unable to use the mvabund framework for this analysis, so we conducted separate linear models to test for these effects.
 
 ## gall size plots
 vLG.height.mean.plot <- ggplot(data = full.df, aes(x = Genotype, y = vLG.height.mean)) + 
