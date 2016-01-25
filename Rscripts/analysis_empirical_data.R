@@ -363,8 +363,6 @@ manyglm.full <- manyglm(full.mvabund ~ Genotype,
                         family = "negative.binomial")
 plot(manyglm.full, which = 1:3) # residuals aren't quite normally distributed, but there doesn't seem to be any heteroscedasticity in the model fit. Note that replotting the residuals gives qualitatively the same picture (it's important to replot them because the residuals involve random number generation, see ?plot.manyglm)
 
-
-
 #Given that a negative binomial distribution seems to provide a good fit to the data, we tested whether the composition of gall-parasitoid interaction varied among willow genotypes. To further diagnose which interactions were driving this response, we conducted univariate analyses on each predictor, but adjusted for multiple comparisons. P-values were adjusted for multiple testing using a step-down resampling procedure. This methods provides strong control of family-wise error rates and makes use of resampling to ensure inferences take into account correlation between variables (Westfall & Young 1993).
 
 #From the table, it is clear to say that genotype has a strong effect on the composition of links in the network. Moreover, differences in community composition are driven primarily by 3 interactions: vLG_Platy, vLG_Tory, and vLG_Mesopol.
@@ -393,7 +391,7 @@ adonis(bray.link.comm.sub ~ Genotype, data = link.comm.sub)
 anova(betadisper(bray.link.comm.sub, group = link.comm.sub$Genotype)) # no differences in dispersion among willow genotypes.
 summary(meandist(bray.link.comm.sub, grouping = link.comm.sub$Genotype))
 
-
+## Gall-parasitoid and gall density/size analyses ----
 ## Now we examine how variation in gall densities and gall size (for Iteomyia) affects the network.
 
 # First we created a dataset that contained complete observations of the network and predictor variables
@@ -491,15 +489,16 @@ arrange(sig.coef.df.2, predictor, response)
 
 
 # linear models
-net.trait.lms <- manylm(net.trait ~ log.vLG_abund + vLG.height.mean + 
-                          log.1.rG_abund + log.1.aSG_abund,
-                        data = full.predictors)
-summary(net.trait.lms) # non significant effect of gall height. It was the least important variable though in the GLM as well with mostly marginally significant effects.
+#net.trait.lms <- manylm(net.trait ~ log.vLG_abund + vLG.height.mean + 
+ #                         log.1.rG_abund + log.1.aSG_abund,
+  #                      data = full.predictors)
+#summary(net.trait.lms) # non significant effect of gall height. It was the least important variable though in the GLM as well with mostly marginally significant effects.
 
 
 # The results from the link composition analysis suggest that increases in gall abundance lead to increasing food web complexity for those individual nodes, whereas differences in leaf gall size lead to fundamental differences in link composition.
 
-# Then we examined whether the proportion of galls parasitized varied among willow genotypes
+## Gall parasitism rates analysis ----
+# Does the proportion of galls parasitized vary among willow genotypes?
 vLG.ptized.glm <- glm(vLG_parasitized/vLG_abund ~ Genotype, data = full.df, 
                       weights = vLG_abund, family = "binomial")
 vLG.Platy.glm <- glm(vLG_Platy/vLG_abund ~ Genotype, data = full.df, 
@@ -520,7 +519,7 @@ aSG.ptized.glm <- glm(aSG_parasitized/aSG_abund ~ Genotype, data = full.df,
                       weights = aSG_abund, family = "binomial")
 
 
-#Summary of results from parasitism models
+# Summary of results from parasitism models
 anova(vLG.ptized.glm, test = "LR")
 anova(vLG.Platy.glm, test = "LR")
 anova(vLG.Mesopol.glm, test = "LR")
@@ -530,8 +529,7 @@ anova(vLG.Mymar.glm, test = "LR")
 anova(rG.ptized.glm, test = "LR")
 anova(aSG.ptized.glm, test = "LR")
 
-
-#Further explore the factors determining gall parasitism rates among willow genotypes. These were the best models as determined by AIC.
+# Further explore the factors determining gall parasitism rates among willow genotypes. These were the best models as determined by AIC.
 vLG_total.ptism <- glm(vLG_parasitized/vLG_abund ~ vLG.height.mean, 
                        data = full.df, weights = vLG_abund, family = "binomial")
 summary(vLG_total.ptism)
@@ -548,14 +546,13 @@ vLG_Tory.ptism <- glm(vLG_Tory/vLG_abund ~ vLG.height.mean + vLG_abund,
                       data = full.df, weights = vLG_abund, family = "binomial")
 summary(vLG_Tory.ptism)
 
-## summary of models. Used Anova because they were multiple independent variables and we wanted to examine their marginal effects.
+## summary of models. Used Anova function because they were multiple independent variables and we wanted to examine their marginal effects.
 car::Anova(vLG_total.ptism)
 car::Anova(vLG_Platy.ptism)
 car::Anova(vLG_Mesopol.ptism)
 car::Anova(vLG_Tory.ptism)
 
-
-#The odds of a leaf gall being parasitized decreased by 25% with every one mm increase in gall size.
+# The odds of a leaf gall being parasitized decreased by 25% with every one mm increase in gall size.
 1-exp(coef(vLG_total.ptism)[2]) # 25% reduction in the odds of vLG being parasitized with every one unit increase in gall size.
 
 
