@@ -389,7 +389,7 @@ bray.link.comm.sub <- vegdist(link.comm.sub[ ,-1], method = "bray")
 
 adonis(bray.link.comm.sub ~ Genotype, data = link.comm.sub)
 anova(betadisper(bray.link.comm.sub, group = link.comm.sub$Genotype)) # no differences in dispersion among willow genotypes.
-summary(meandist(bray.link.comm.sub, grouping = link.comm.sub$Genotype))
+summary(meandist(bray.link.comm.sub, grouping = link.comm.sub$Genotype)) # average dissimilarity of 78%
 
 ## Gall-parasitoid and gall density/size analyses ----
 ## Now we examine how variation in gall densities and gall size (for Iteomyia) affects the network.
@@ -463,7 +463,9 @@ plot(net.mvabund.2, which = 1:3) # residuals look pretty good.
 anova.net <- anova.manyglm(net.mvabund.2, p.uni = "unadjusted") # takes about 2.5 min to run.
 anova.net # not that since the P-values are determined by a resampling procedure, they may differ slightly between runs. Therefore, we retain all P-values < 0.10 (during at least one run) for the coefficient summary below.
 
-t(coef(net.mvabund.2))[,-1][c(5,4,6,2,3,1,7),c(2,1,3,4)]
+# coefficient summary - Table S2, abundance of gall-parasitoid interactions section
+t(coef(net.mvabund.2))[,-1][c(11,9,12,8,10,5,4,6,2,3,1,7),c(2,1,3,4)]
+#t(coef(net.mvabund.2))[,-1][c(5,4,6,2,3,1,7),c(2,1,3,4)]
 
 anova.net.null <- anova.manyglm(net.mvabund.2, net.mvabund.6.null) # takes about 30 sec to run
 anova.net.null
@@ -519,7 +521,7 @@ aSG.ptized.glm <- glm(aSG_parasitized/aSG_abund ~ Genotype, data = full.df,
                       weights = aSG_abund, family = "binomial")
 
 
-# Summary of results from parasitism models
+# Summary of results from parasitism models. Table S1 of supplementary material, Proportion of Parasitized galls.
 anova(vLG.ptized.glm, test = "LR")
 anova(vLG.Platy.glm, test = "LR")
 anova(vLG.Mesopol.glm, test = "LR")
@@ -547,6 +549,7 @@ vLG_Tory.ptism <- glm(vLG_Tory/vLG_abund ~ vLG.height.mean + vLG_abund,
 summary(vLG_Tory.ptism)
 
 ## summary of models. Used Anova function because they were multiple independent variables and we wanted to examine their marginal effects.
+# Table S3 of supplementary material.
 car::Anova(vLG_total.ptism)
 car::Anova(vLG_Platy.ptism)
 car::Anova(vLG_Mesopol.ptism)
