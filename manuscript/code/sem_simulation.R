@@ -7,7 +7,7 @@ require(dplyr)
 require(ggplot2)
 
 ## upload dataset
-sem.df <- read.csv("~/Documents/Genotype_Networks/data/food web complexity simulation 50 reps of 200 sims 4 reps.csv") %>%
+sem.df <- read.csv("manuscript/Dryad_data_copy/food web complexity simulation 50 reps of 200 sims 4 reps.csv") %>%
   filter(df.sim.number == 1) # note that results are qualitatively similar with all of the other data frames.
 
 

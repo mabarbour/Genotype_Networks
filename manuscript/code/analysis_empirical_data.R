@@ -20,7 +20,7 @@ library(visreg) # visualize regression output
 library(dplyr) # for dataset
 
 ## load and prep datasets for analysis ----
-full.df <- read.csv('data/tree_level_interaxn_all_plants_traits_size.csv') %>% 
+full.df <- read.csv('manuscript/Dryad_data_copy/tree_level_interaxn_all_plants_traits_size.csv') %>% 
   tbl_df()
 interaxns_noPont <- full.df %>%
   select(aSG_Tory:rG_Platy, rG_Tory, SG_Platy, vLG_Eulo:vLG_Tory) %>%

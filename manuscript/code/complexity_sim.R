@@ -4,7 +4,7 @@
 ## source in required data ----
 #source('network_management_tree_level.R')
 #source('~/Documents/Genotype_Networks/Rscripts/network_management_tree_level.R')
-tree_level_interaxn_all_plants_traits_size <- read.csv("tree_level_interaxn_all_plants_traits_size.csv")
+tree_level_interaxn_all_plants_traits_size <- read.csv("manuscript/Dryad_data_copy/tree_level_interaxn_all_plants_traits_size.csv")
 
 ## load required libraries
 #require(bipartite)

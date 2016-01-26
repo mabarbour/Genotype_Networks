@@ -1,5 +1,5 @@
 source('~/Documents/Genotype_Networks/Rscripts/network_management_tree_level.R')
-source('~/Documents/miscellaneous_R/ggplot_themes.R')
+#source('~/Documents/miscellaneous_R/ggplot_themes.R')
 source('~/Documents/ggnet/bipartite_plot_info.R')
 source('~/Documents/ggnet/tripartite_plot_info.R')
 
@@ -164,7 +164,7 @@ gall.size$widths[2:3] <- maxWidth
 gall_specificity <- arrangeGrob(gall.dominants.plot, leaf.gall.size, 
                                  ncol = 1, heights = c(7/10, 3/10))
 
-ggsave("~/Documents/Genotype_Networks/figures/fig_3_gall_specificity_PNAS.png", gall_specificity, width = 3.42, height = 5, units = "in")# 6.48
+ggsave("manuscript/figures/fig_3/fig_3_gall_specificity_PNAS.png", gall_specificity, width = 3.42, height = 5, units = "in")# 6.48
 
 ## tidy up data for visualizing differences in link composition among genotypes. ----
 link.df <- as.data.frame(tree_level_interaxn_all_plants_traits_size) %>%
@@ -286,7 +286,7 @@ vLG.ptized$widths[2:3] <- maxWidth
 # used same plotting dimensions as for gall specificity figure
 parasitism_specificity <- arrangeGrob(link.dominants.plot, vLG_ptized.plot, #
                                       ncol = 1, heights = c(7/10, 3/10))
-ggsave("~/Documents/Genotype_Networks/figures/fig_4_parasitism_specificity_PNAS.png", parasitism_specificity, width = 3.42, height = 5, units = "in")#6.48
+ggsave("manuscript/figures/fig_4/fig_4_parasitism_specificity_PNAS.png", parasitism_specificity, width = 3.42, height = 5, units = "in")#6.48
 
 ## multipanel: gall and link figure ----
 #grid.arrange(arrangeGrob(gall.dominants.plot, leaf.gall.size, 
@@ -345,7 +345,7 @@ vLG_parasitism_mech <- ggplot(attack.df, aes(x = vLG.height.mean, y = value/vLG_
   scale_color_manual(values = cbPalette[c(6,4,2)]) + 
   theme_links + theme(axis.text.x = element_text(size = 9))
 
-ggsave("~/Documents/Genotype_Networks/figures/fig_5_parasitism_mechanisms_PNAS.png", vLG_parasitism_mech, width = 3.42, height = 5, units = "in") # 6.48
+ggsave("manuscript/figures/fig_5/fig_5_parasitism_mechanisms_PNAS.png", vLG_parasitism_mech, width = 3.42, height = 5, units = "in") # 6.48
 
 ## abundance plots
 library(MASS) # necessary for method = "glm.nb"
@@ -488,7 +488,7 @@ compliment <- ggplot(data = df_ell.cap.geno, aes(x = CAP1, y = CAP2, group = Gen
 
 vp <- viewport(width = 0.35, height = 0.35, x = 0.75, y = 0.32) #viewport(width = 0.4, height = 0.4, x = 0.7, y = 0.35)
 
-tiff("~/Documents/Genotype_Networks/figures/fig_6_complexity_complimentarity.tiff", width = 3.42, height = 4, units = "in", res = 600)
+tiff("manuscript/figures/fig_6/fig_6_complexity_complimentarity.tiff", width = 3.42, height = 4, units = "in", res = 600)
 print(total)
 print(compliment, vp = vp)
 dev.off() # turn off png device
@@ -507,7 +507,7 @@ grid.arrange(complexity,complimentarity, ncol = 1)
 
 complex_compliment <- arrangeGrob(complexity, complimentarity, ncol = 1)
 
-ggsave("~/Documents/Genotype_Networks/figures/fig_6_complexity_complimentarity_PNAS.png", complex_compliment, width = 3.42, height = 5, units = "in")
+ggsave("manuscript/figures/fig_6/fig_6_complexity_complimentarity_PNAS.png", complex_compliment, width = 3.42, height = 5, units = "in")
 #dev.off() # turn off png device
 
 ## Create metaweb ----
