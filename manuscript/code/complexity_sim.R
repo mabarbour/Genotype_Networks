@@ -1,16 +1,15 @@
+#############################################################
+#  Description: This script simulates the additive effects of genetic variation on food-web complexity. 
+#  Code author: Matthew A. Barbour
+#  Email: barbour@zoology.ubc.ca
+#############################################################
 
-#### Simulation of the additive effects of genetic variation on food-web complexity
-
-## source in required data ----
-#source('network_management_tree_level.R')
-#source('~/Documents/Genotype_Networks/Rscripts/network_management_tree_level.R')
+## load required data ----
 tree_level_interaxn_all_plants_traits_size <- read.csv("manuscript/Dryad_data_copy/empirical_data/tree_level_interaxn_all_plants_traits_size.csv")
 
-## load required libraries
-#require(bipartite)
+## load required libraries ----
 library(reshape)
 library(reshape2)
-
 library(plyr)
 library(dplyr)
 library(tidyr)
@@ -18,7 +17,7 @@ library(tidyr)
 ## change Genotype * to C for plotting aesthetics
 levels(tree_level_interaxn_all_plants_traits_size$Genotype)[1] <- "C"
 
-## data frame of interactions
+## make data frame of interactions ----
 df.interactions <- tree_level_interaxn_all_plants_traits_size %>%
   tbl_df() %>%
   filter(Genotype != "U") %>% # never collected any galls and thus gall-ptoid interactions so I removed it from the dataset. 
@@ -29,55 +28,47 @@ df.interactions <- tree_level_interaxn_all_plants_traits_size %>%
          willow_SG = SG_abund,
          vLG_Platy, vLG_Mesopol, vLG_Tory, vLG_Eulo, vLG_Mymarid,
          rG_Platy, rG_Mesopol, rG_Tory, rG_Eulo, rG_Lestodip,
-         SG_Platy, aSG_Tory)#,
-         #vLG.size = vLG.height.mean)#,
-         #Platy_abund, Tory_abund, Mesopol_abund, Eulo_abund, Lestodip_abund, Mymarid_abund)
+         SG_Platy, aSG_Tory)
 
-## Function to sample X replicate plants for each genotype, and then sum up the interactions for each genotype. Sampling is done without replacement to make sure unique plant replicates are sampled.
+## Function to sample X replicate plants for each genotype, and then sum up the interactions for each genotype ----
+# Sampling is done without replacement to make sure unique plant replicates are sampled.
 geno.sample <- function(df, reps){
   df.group <- df %>% group_by(Genotype)
   tmp <- sample_n(df.group, size = reps, replace = FALSE)
   tmp.sum <- tmp %>%
-    #select(-vLG.size) %>%
     summarise_each(funs(sum)) %>%
     mutate(plants.sampled = reps) 
   tmp.sum
-  #vLG.size <- tmp %>% summarise(vLG.size = mean(vLG.size, na.rm = TRUE))
-  
-  #tmp.join <- left_join(tmp.sum, vLG.size)
 }
 
-## Function to sample different levels of genetic variation (i.e. number of genotypes) without replacement. Note also that this is virtually the same as the "geno.sample" function except this time we are sampling different numbers of genotypes.
+## Function to sample different levels of genetic variation (i.e. number of genotypes) without replacement ----
+# Note also that this is virtually the same as the "geno.sample" function except this time we are sampling different numbers of genotypes.
 diversity.sum <- function(df, number.of.genotypes){
   tmp <- sample_n(df, size = number.of.genotypes, replace = FALSE) %>% arrange(Genotype) # arranged so we can later identify and remove duplicate genotype combinations
   genotype.combo <- paste(tmp$Genotype, collapse = " ") # track genotypes sampled for each combination
+  #browser()
   tmp.sum <- tmp %>%
-    #select(-vLG.size) %>%
+    select(-Genotype) %>%
     summarise_each(funs(sum)) %>%
     mutate(genotypes.sampled = number.of.genotypes,
-           genotype.combo = genotype.combo) %>%
-    select(-Genotype)
-  
-  #tmp.sum$vLG.size.mean <- mean(tmp$vLG.size, na.rm = TRUE)
-  #tmp.sum$vLG.size.sd <- sd(tmp$vLG.size, na.rm = TRUE)
-  #tmp.sum$vLG.size.IQR <- IQR(tmp$vLG.size, na.rm = TRUE)
-  #tmp.sum$vLG.size.mad <- mad(tmp$vLG.size, na.rm = TRUE)
-  
+           genotype.combo = genotype.combo) #%>%
+    #select(-Genotype)
   tmp.sum
 }
 
-## Sample different levels of genetic variation X times
-df.reps <- 50 # replications of data frame for simulation. 40 for non-monoculture sim
-sim.reps <- 1000 # replications of simulation
-max.genotypes <- 25 # maximum number of genotypes in simulation
+## Sample different levels of genetic variation X times ----
+df.reps <- 50 # replications of data frame for simulation. Set to 1000 for monoculture simulations.
+sim.reps <- 1000 # replications of simulation. Not needed for monoculture simulations.
+max.genotypes <- 25 # maximum number of genotypes in simulation. Keep the same for monoculture simulations.
 
-# create data frames for simulation
+## create data frames for simulation ----
 list.sim.food.web <- list()
 for(k in 1:df.reps){
   list.sim.food.web[[k]] <- geno.sample(df = df.interactions, 
-                                        reps = 4)   
+                                        reps = 4) # for monoculture simulations manipulate from 1 to 4.  
 }
 
+## run simulation ----
 df.sim.food.web <- list()
 for(k in 1:df.reps){
   sim.food.web <- list()
@@ -87,38 +78,26 @@ for(k in 1:df.reps){
       food.web[[j]] <- diversity.sum(df = list.sim.food.web[[k]], number.of.genotypes = j)
     }
     sim.food.web[[i]] <- ldply(food.web) %>% mutate(sim.number = i)
-    #browser()
   }
   tmp.df.sim.food.web <- ldply(sim.food.web) %>% 
     mutate(df.sim.number = k)
-  #browser()
+
   # remove duplicate genotype combinations from the food webs
   dups.pos <- which(duplicated(tmp.df.sim.food.web$genotype.combo) == TRUE)
   df.sim.food.web[[k]] <- tmp.df.sim.food.web[-dups.pos, ]
 }
 
-## manage data sets for calculating food-web complexity
+## manage data sets for calculating food-web complexity ----
 sim.food.web.df <- ldply(df.sim.food.web) %>%
   mutate(unique.sim = interaction(df.sim.number, sim.number, genotypes.sampled, sep = "_"))
 
-#write.csv(sim.food.web.df, "~/Documents/Genotype_Networks/data/food web base data 50 reps of 1000 sims 4 reps.csv")
-
-#require(plyr)
-#require(dplyr)
-#require(tidyr)
-#require(reshape2)
-#require(reshape)
-#sim.food.web.df <- read.csv("~/Documents/Genotype_Networks/data/food web base data 50 reps of 1000 sims 4 reps.csv") %>%
- # select(-X)
-
 sim.info <- sim.food.web.df %>%
-  select(unique.sim, df.sim.number, sim.number, genotypes.sampled, genotype.combo, plants.sampled, willow_vLG, willow_rG, willow_aSG, willow_SG)#, 
-         #vLG.size.mean, vLG.size.sd, vLG.size.IQR, vLG.size.mad) 
+  select(unique.sim, df.sim.number, sim.number, genotypes.sampled, genotype.combo, plants.sampled, willow_vLG, willow_rG, willow_aSG, willow_SG)
 
 web.df <- sim.food.web.df %>%
-  select(-genotype.combo, -genotypes.sampled, -df.sim.number, -sim.number, -plants.sampled) %>% #,
-         #-vLG.size.mean, -vLG.size.sd, -vLG.size.IQR, -vLG.size.mad) %>%
+  select(-genotype.combo, -genotypes.sampled, -df.sim.number, -sim.number, -plants.sampled) %>% 
   gather(unique.sim, variable)
+colnames(web.df) <- c("unique.sim","variable","value")
 
 ## for monoculture sims only ----
 #sim.food.web.df.mono <- ldply(list.sim.food.web) %>%
@@ -149,8 +128,7 @@ gall.ptoid.list.noNULL <- gall.ptoid.list[!unlist(lapply(gall.ptoid.list, is.nul
 
 ## this function calculates weighted linkage density, generality, and vulnerability of bipartite food webs ----
 web.measures <- function(web.list){
-  #require(bipartite)
-  
+
   web.list.measures <- list()
   unique.sim <- c()
   
@@ -191,20 +169,11 @@ gall.ptoid.measures <- web.measures(gall.ptoid.list.noNULL)
 
 ## join the results together and rename the column names
 all.measures <- left_join(sim.info, willow.gall.measures, by = "unique.sim") %>%
-  left_join(., gall.ptoid.measures, by = "unique.sim") %>%
-  rename(., 
-         link.density.plant_gall = linkage.density.x,
-         vulnerability.plant_gall = vulnerability.x,
-         generality.plant_gall = generality.x,
-         link.density.gall_ptoid = linkage.density.y,
-         vulnerability.gall_ptoid = vulnerability.y,
-         generality.gall_ptoid = generality.y)# %>%
+  left_join(., gall.ptoid.measures, by = "unique.sim") #%>%
+colnames(all.measures)[11:16] <- c("link.density.plant_gall", "vulnerability.plant_gall", "generality.plant_gall", "link.density.gall_ptoid", "vulnerability.gall_ptoid", "generality.gall_ptoid")
+
 all.measures$total_complexity <- rowMeans(all.measures[ ,c("link.density.plant_gall","link.density.gall_ptoid")], na.rm = TRUE) 
 
 ## save the results of the simulation as a dataframe.
-#write.csv(all.measures, "~/Documents/Genotype_Networks/data/food web complexity simulation 40 reps of 100 sims.csv") # it took ~5 min to run this simulation at 5 reps, so perhapse 40 min at 40 reps?
-#write.csv(all.measures, "~/Documents/Genotype_Networks/data/food web complexity simulation 1000 monosims 4 reps.csv")
-#write.csv(all.measures, "~/Documents/Genotype_Networks/data/food web complexity simulation 1 reps of 100 sims 4 reps TEST.csv")
-write.csv(all.measures, "food web complexity simulation 50 reps of 1000 sims 4 reps.csv") 
-#write.csv(all.measures, "~/Documents/Genotype_Networks/data/food web complexity simulation 50 reps of 1000 sims 4 reps.csv") 
+#write.csv(all.measures, "food web complexity simulation 50 reps of 100 sims 4 reps.csv") 
 
