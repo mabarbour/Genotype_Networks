@@ -8,14 +8,14 @@ require(tidyr)
 
 
 ## upload results from full simulation
-all.measures <- read.csv("manuscript/Dryad_data_copy/food web complexity simulation 50 reps of 200 sims 4 reps.csv")
+all.measures <- read.csv("manuscript/Dryad_data_copy/simulation_data_output/food web complexity simulation 50 reps of 200 sims 4 reps.csv")
 dim(all.measures)[1] # 216,102 unique simulations. 250,00 simulations originally run
 
 ## upload results from monoculture simulations
-mono1 <- read.csv("manuscript/Dryad_data_copy/food web complexity simulation 1000 monosims 1 reps.csv")
-mono2 <- read.csv("manuscript/Dryad_data_copy/food web complexity simulation 1000 monosims 2 reps.csv")
-mono3 <- read.csv("manuscript/Dryad_data_copy/food web complexity simulation 1000 monosims 3 reps.csv")
-mono4 <- read.csv("manuscript/Dryad_data_copy/food web complexity simulation 1000 monosims 4 reps.csv")
+mono1 <- read.csv("manuscript/Dryad_data_copy/simulation_data_output/food web complexity simulation 1000 monosims 1 reps.csv")
+mono2 <- read.csv("manuscript/Dryad_data_copy/simulation_data_output/food web complexity simulation 1000 monosims 2 reps.csv")
+mono3 <- read.csv("manuscript/Dryad_data_copy/simulation_data_output/food web complexity simulation 1000 monosims 3 reps.csv")
+mono4 <- read.csv("manuscript/Dryad_data_copy/simulation_data_output/food web complexity simulation 1000 monosims 4 reps.csv")
 
 monos <- bind_rows(list(mono1, mono2, mono3, mono4)) #%>%
 

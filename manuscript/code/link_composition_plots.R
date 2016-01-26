@@ -1,7 +1,8 @@
-source('~/Documents/Genotype_Networks/Rscripts/network_management_tree_level.R')
+#source('~/Documents/Genotype_Networks/Rscripts/network_management_tree_level.R')
+tree_level_interaxn_all_plants_traits_size <- read.csv("manuscript/Dryad_data_copy/empirical_data/tree_level_interaxn_all_plants_traits_size.csv")
 #source('~/Documents/miscellaneous_R/ggplot_themes.R')
-source('~/Documents/ggnet/bipartite_plot_info.R')
-source('~/Documents/ggnet/tripartite_plot_info.R')
+source('~/Documents/ggnet/bipartite_plot_info.R') # need to link to forked version on github
+source('~/Documents/ggnet/tripartite_plot_info.R')  # need to link to forked version on github
 
 require(ggplot2)
 #devtools::install_github("hadley/ggplot2")
