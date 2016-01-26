@@ -1,3 +1,9 @@
+#############################################################
+#  Description: This script estimates the total number of unique gall-parasitoid interactions based on my sampling effort (results presented in supplementary material).
+#  Code author: Matthew A. Barbour
+#  Email: barbour@zoology.ubc.ca
+#############################################################
+
 ## load required data
 tree_level_interaxn_all_plants_traits_size <- read.csv("manuscript/Dryad_data_copy/empirical_data/tree_level_interaxn_all_plants_traits_size.csv")
 

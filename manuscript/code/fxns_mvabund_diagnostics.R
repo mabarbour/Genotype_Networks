@@ -1,3 +1,9 @@
+#############################################################
+#  Description: This script generates curve plots to evaluate whether the specified error distribution satisfies the assumptions of a multivariate GLM.
+#  Code author: Matthew A. Barbour
+#  Email: barbour@zoology.ubc.ca
+#############################################################
+
 # Curve plots that are meant to be plotted on top of meanvar.plots in the 'mvabund' package or any other mean-variance plots. 
 poisson_curve <- function(from, to, add = TRUE, color = "blue", line.width = 3, line.type = 1){
   curve(expr = 1*x, # poisson assumes that mean = variance

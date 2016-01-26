@@ -1,3 +1,8 @@
+#############################################################
+#  Description: This script calculates the functional-trait diversity of willow genotypes (results presented in supplementary material).
+#  Code author: Matthew A. Barbour
+#  Email: barbour@zoology.ubc.ca
+#############################################################
 
 ## load required data
 tree_level_interaxn_all_plants_traits_size <- read.csv("manuscript/Dryad_data_copy/empirical_data/tree_level_interaxn_all_plants_traits_size.csv")
