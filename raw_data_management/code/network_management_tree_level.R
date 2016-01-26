@@ -1,6 +1,9 @@
-## This R script organizes the data for gall-parasitoid networks on individual trees of different willow genotypes.
-## Author: Matt Barbour
-## Email: barbour@zoology.ubc.ca
+########################################################
+#  Description: This R script organizes the data for gall-parasitoid networks on individual trees of different willow genotypes.
+#
+#  Author: Matt Barbour
+#  Email: barbour@zoology.ubc.ca
+########################################################
 
 ## upload packages for data manipulation. order of libraries is important. always load dplyr last.
 library(reshape)

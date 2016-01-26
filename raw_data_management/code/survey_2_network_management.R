@@ -1,10 +1,9 @@
-##############################################################################
-# Description: This script organizes and manages data collected in the fall of 
-#              2012 in the willow garden at HBNWR in Eureka, California.
+#################################################################
+# Description: This script organizes and manages data collected in the fall of 2012 in the willow garden at HBNWR in Eureka, California.
 #
-# Manager: Matt Barbour
+# Code author: Matthew A. Barbour
 # Email: barbour@zoology.ubc.ca
-##############################################################################
+#################################################################
 
 # load libraries
 library(reshape)
