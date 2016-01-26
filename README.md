@@ -1,5 +1,5 @@
 # Project Summary (in plain language)
-**What we did**: We planted a huge field with 25 different clones of Coastal willow (*Salix hookeriana*). 
+**What we did**: We planted a huge field with 26 different clones of Coastal willow (*Salix hookeriana*). 
 
 **What we found**: We found that the genes of the willow tree affected which flies fed on the tree, which in turn affected which tiny wasps (parasitoids) attacked the flies.
 
