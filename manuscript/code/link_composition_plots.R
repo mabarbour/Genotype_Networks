@@ -1,5 +1,5 @@
 #############################################################
-#  Description: This script creates figures 3, 4, 5, and 6 for the manuscript, "Genetic specificity of a plant-insect food web: Implications for linking genetic variation to food-web complexity"
+#  Description: This script creates figures 1, 3, 4, 5, and 6 for the manuscript, "Genetic specificity of a plant-insect food web: Implications for linking genetic variation to food-web complexity"
 #  Code author: Matthew A. Barbour
 #  Email: barbour@zoology.ubc.ca
 #############################################################
