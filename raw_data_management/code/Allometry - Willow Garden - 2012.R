@@ -4,11 +4,11 @@
 library(dplyr)
 
 # setworking directions
-setwd('~/Documents/Genotype_Networks/data/')
+#setwd('~/Documents/Genotype_Networks/data/')
 
 # upload data
-allom <- read.csv("~/Documents/Genotype_Networks/data/Allometry - Willow Garden - 2012.csv")
-stem.diams <- read.csv("~/Documents/Genotype_Networks/data/survey_2_stem_diams.csv", skip=1)
+allom <- read.csv("raw_data_management/data/Allometry - Willow Garden - 2012.csv")
+stem.diams <- read.csv("raw_data_management/data/survey_2_stem_diams.csv", skip=1)
 
 # explore data
 head(allom)

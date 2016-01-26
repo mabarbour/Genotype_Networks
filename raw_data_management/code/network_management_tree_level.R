@@ -10,7 +10,7 @@ library(plyr)
 library(dplyr)
 
 ## upload molten gall network data and calculate some basic summary data
-gall_net_melt <- read.csv("~/Documents/Genotype_Networks/data/gall_network_data.csv")
+gall_net_melt <- read.csv("raw_data_management/data/gall_network_data.csv")
 gall_net_melt <- tbl_df(gall_net_melt) # 1,495 galls
 sum(gall_net_melt$value, na.rm = TRUE) # 1709 total samples
 sum(filter(gall_net_melt, gall_contents == "nothing")$value) # 518 "nothing" samples

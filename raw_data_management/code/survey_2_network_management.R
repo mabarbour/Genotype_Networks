@@ -14,13 +14,13 @@ library(dplyr)
 #### Data management
 
 # Shoot count estimates as well as plant positions where zero galls were collected
-shoot.countEst <- read.csv("~/Documents/Genotype_Networks/data/survey_2_stem_diams_shootEsts.csv")
+shoot.countEst <- read.csv("raw_data_management/data/data/survey_2_stem_diams_shootEsts.csv")
 shoot.count_df <- tbl_df(shoot.countEst)
 shoot.count_df <- shoot.count_df %>%
   select(plant.position = Plant.Position, Galls.found, shootEst.all, shootEst.no18)
 
 # upload plant position data with details on plant identity to eventually merge with gall network data
-plant.position.info <- read.csv("~/Documents/Genotype_Willow_Community/datasets_&_Rscripts/Willow Garden Positions.csv")
+plant.position.info <- read.csv("raw_data_management/data/Willow Garden Positions.csv")
 plant.position.info <- tbl_df(plant.position.info)
 plant.position.info <- plant.position.info %>%
   select(Genotype, Gender, Row = Row.., plant.position = Plant.Position)
@@ -30,7 +30,7 @@ plant.info_df <- left_join(shoot.count_df, plant.position.info) %>%
   select(Gender, Genotype, Row, plant.position:shootEst.no18)
 
 # upload gall network data (survey #2)
-Gall_Network_Data_Survey_2_2012 <- read.csv("~/Documents/Genotype_Networks/data/Gall_Network_Data_Survey_2_raw.csv", skip=1, stringsAsFactors = FALSE, strip.white = TRUE)
+Gall_Network_Data_Survey_2_2012 <- read.csv("raw_data_management/data/Gall_Network_Data_Survey_2_raw.csv", skip=1, stringsAsFactors = FALSE, strip.white = TRUE)
 Gall_Network_Data_Survey_2_2012 <- tbl_df(Gall_Network_Data_Survey_2_2012)
 Gall_Network_Data_Survey_2_2012[which(Gall_Network_Data_Survey_2_2012$plant.position == 49.8),"plant.position"] <- rep(167, 7) # 49.8 label came from the stem diameter for this plant, but we also knew it was genotype "O". I also noticed I was missing plant 167 from the dataset and plant was Genotype "O" and had a stem diameter of 49.8, therefore I input 167 as the plant position.
 
