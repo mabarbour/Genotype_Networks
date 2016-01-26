@@ -1,3 +1,5 @@
+[![DOI](https://zenodo.org/badge/20091/mattbarbour34/Genotype_Networks.svg)](https://zenodo.org/badge/latestdoi/20091/mattbarbour34/Genotype_Networks)
+
 # Project Summary (in plain language)
 **What we did**: We planted a huge field with 26 different clones of the willow tree, *Salix hookeriana*. 
 
