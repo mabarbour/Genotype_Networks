@@ -10,5 +10,5 @@ These findings are in press at *PNAS* in a paper entitled, "Genetic specificity 
 # Repository contents
 **manuscript**: This folder contains all of the data and code necessary to reproduce our published results. It also includes all figures associated with the manuscripts as well as the original and revised versions of the paper.
 
-**raw_data_management**: This folder contains all of the data and code required to reproduce the primary empirical data file, "tree_level_interaxn_all_plants_traits_size.csv".
+**raw_data_management**: This folder contains all of the data and code required to generate the clean empirical data file, "tree_level_interaxn_all_plants_traits_size.csv".
 
