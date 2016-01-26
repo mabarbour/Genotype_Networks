@@ -1,16 +1,14 @@
-## This code replicates the analyses of the empirical data presented in the Results and Discussion and Supplementary Material of the manuscript, "Genetic specificity of a plant-insect food web: Implications for linking genetic variation to food-web complexity"
-## Code author: Matthew A. Barbour
-## Email: barbour@zoology.ubc.ca
+#############################################################
+#  Description: This script replicates the analyses of the empirical data presented in the Results and Discussion and Supplementary Material of the manuscript, "Genetic specificity of a plant-insect food web: Implications for linking genetic variation to food-web complexity"
+#  Code author: Matthew A. Barbour
+#  Email: barbour@zoology.ubc.ca
+#############################################################
 
-## source in required datasets and functions ----
-#source('~/Documents/Genotype_Networks/Rscripts/network_management_tree_level.R')
+## source in required functions ----
 source('Rscripts/fxns_mvabund_diagnostics.R')
-#source('~/Documents/miscellaneous_R/model_diagnostic_functions.R')
-#source('~/Documents/miscellaneous_R/jensen_magnitude_function.R')
 
 ## load required libraries ----
 library(vegan) # for adonis analysis
-#library(knitr) # for making tables
 library(ggplot2) # for exploratory plots
 theme_set(theme_bw()) # customize ggplot for prettier default graphs
 library(gridExtra) # for multipanel plots
@@ -25,8 +23,6 @@ full.df <- read.csv('manuscript/Dryad_data_copy/empirical_data/tree_level_intera
 interaxns_noPont <- full.df %>%
   select(aSG_Tory:rG_Platy, rG_Tory, SG_Platy, vLG_Eulo:vLG_Tory) %>%
   names() # all gall-parasitoid interactions used for analysis. Excluded interactions associated with the sawfly Pontania californica.
-#full.df <- tree_level_interaxn_all_plants_traits_size 
-#interaxns_noPont # all gall-parasitoid interactions used for analysis
 
 ## Gall size analyses ----
 # Testing whether the size of each gall species varies among willow genotypes. 
@@ -100,24 +96,6 @@ bray.gall.comm.sub <- vegdist(gall.comm.sub[ ,-1], method = "bray")
 adonis(bray.gall.comm.sub ~ Genotype, data = gall.comm.sub)
 anova(betadisper(bray.gall.comm.sub, group = gall.comm.sub$Genotype)) # no differences in dispersion among willow genotypes.
 summary(meandist(bray.gall.comm.sub, grouping = gall.comm.sub$Genotype)) # average dissimilarity of 69%
-
-## correlation in gall abundances
-#gall.corrs.df <- full.df %>% select(Genotype, vLG.height.mean, vLG.gall.count, vLG_abund, rG_abund, aSG_abund)
-#gall.corrs.pheno <- select(gall.corrs.df, -Genotype, -vLG.gall.count)
-#library(psych)
-#library(car)
-#scatterplotMatrix(gall.corrs.pheno)
-#corr.test(gall.corrs.pheno, use = "pairwise", method = "pearson")
-
-#gall.corrs.geno <- gall.corrs.df %>%
- # group_by(Genotype) %>%
-  #summarise(leaf_gall_size = weighted.mean(vLG.height.mean, vLG.gall.count, na.rm = TRUE),
-   #         leaf_gall_abund = mean(vLG_abund, na.rm = TRUE),
-    #        bud_gall_abund = mean(rG_abund, na.rm = TRUE),
-     #       apical_stem_gall_abund = mean(aSG_abund, na.rm = TRUE)) %>%
-  #select(leaf_gall_size, leaf_gall_abund, bud_gall_abund, apical_stem_gall_abund)
-#scatterplotMatrix(gall.corrs.geno)
-#corr.test(gall.corrs.geno)
 
 ## Plant trait - gall abundance analysis ----
 # Determine which willow traits are resulting in variation in gall abundances.
@@ -214,7 +192,7 @@ anova.manyglm(mod12, mod11)
 anova.manyglm(mod10, mod11)
 anova.manyglm(mod14.null, mod13, mod12, mod11, mod10)
 
-# Identify gall-trait associations. C_N_imputed has a marginally significant effect on Iteomyia and R. salicisbrassicoides abundance. FlavononOLES.PC1 has a signficiant effect on Cecidomyiid sp. A abundance, and plant size as a significant effect on R. salicisbrassicoides and a marginal effect on R. salicisbattatus abundance.
+# Identify gall-trait associations.
 uni.galls.traits <-anova.manyglm(mod11, p.uni = "unadjusted")
 
 coef.df <- data.frame(coef(mod11))
@@ -230,15 +208,6 @@ exp(coef.df["C_N_imputed", "rG_abund"]*range.C_N_imputed) # over the range of C:
 1 - 1.10^coef.df["log_size","rG_abund"] # for every 10% increase in plant size, R. salicisbrassicoides density decreased 9%
 
 1 - 1.10^coef.df["log_size","SG_abund"] # for every 10% increase in plant size, R. salicisbattatus density decreasted by 37%
-
-
-## gall trait linear models
-#gall.trait.lms <- manylm(galls_galls.traits ~ C_N_imputed + flavanonOLES.PC1 + log_size, 
-#                         data = traits_galls.traits)
-#summary(gall.trait.lms)
-#anova(gall.trait.lms, p.uni = "unadjusted") # qualitatively the same results as GLM.
-
-#best.r.sq(galls_galls.traits ~ traits_galls.traits$C_N_imputed + traits_galls.traits$water_content + traits_galls.traits$sal_tannin.PC1 + traits_galls.traits$cinn.PC1 + traits_galls.traits$cinn.PC2 + traits_galls.traits$flavonOLES.PC1 + traits_galls.traits$flavonOLES.PC2 + traits_galls.traits$flavanonOLES.PC1 + traits_galls.traits$log_size + traits_galls.traits$log_trichomes + traits_galls.traits$Height_resid + traits_galls.traits$Density_resid + traits_galls.traits$SLA_resid) # results are pretty close to GLM, retains flavanonOLES.PC1, C:N, but has cinn.PC1 and log.trichomes before log.size. Note that these variables were included in the GLM AIC, so it isn't too surprising. Not a big concern overall though.
 
 ## Visualize trait - abundance associations
 # include model with all of the traits, but only examine one of the variables
@@ -333,48 +302,29 @@ summary(size9)
 
 anova(size14.null, size12)
 
-summary(lm(vLG.height.mean ~ luteolin.der2__A320nm, full.df, weights = full.df$vLG.gall.count))
-
 anova(size14.null, size13, size12, size11, size10, size9, size8, size7)
 
 plot(size12) # residuals looks pretty good
-vLG.size.predict <- visreg(size12) # not currently helping calculate variation below.
-
-# Iteomyia size decreased 1.2 fold over the range in salicylate/tannin chemistry
-max(vLG.size.predict$sal_tannin.PC1$y$fit)/min(vLG.size.predict$sal_tannin.PC1$y$fit)
-
-# Iteomyia size decreased 1.2 fold over the range in flavonid chemistry
-max(vLG.size.predict$flavonOLES.PC1$y$fit)/min(vLG.size.predict$flavonOLES.PC1$y$fit)
+vLG.size.predict <- visreg(size12) 
 
 ## Gall-parasitoid frequency and composition analyses ----
-#Here, we evaluate the assumptions of mvabund and see which error distribution is appropriate. Specifically, we first look at a plot of the mean-variance relationship of our response variables. It is easy to see that the negative binomial model (black line) provides the best fit to this data, suggesting that we should specify this as the error distribution in our model
+
+# evaluate the assumptions of mvabund and see which error distribution is appropriate
 full.mvabund <- mvabund(full.df[ ,interaxns_noPont]) # create mvabund object for easy analysis
 full.meanvar <- meanvar.plot(full.mvabund ~ full.df$Genotype, table = TRUE) # easy to see that the data do not have a poisson distribution, therefore, a negative binomial may be a good fit.
 poisson_curve(from = 0.1, to = 3.0, color = "blue")
 quasipoisson_curve(from = 0.1, to = 3.0, quasi.scalar = 2, color = "red")
 neg.binomial_curve(from = 0.1, to = 3.0, theta.negbin = 0.7, color = "black") # negative binomial appears to provide the best fit to this relationship
 
-#no.relationships <- which(names(colSums(full.mvabund)) %in% c("rG_Lestodip", "rG_Mesopol", "SG_Platy", "vLG_Eulo"))
-#sum(colSums(full.mvabund)[no.relationships])/sum(colSums(full.mvabund)) # less than 13% of the links in the network had relationships to gall abundance and size (see results below)
-
-# We then fit a model and used residual plots to diagnose the model fit.
+# fit model and use residual plots to diagnose the model fit.
 manyglm.full <- manyglm(full.mvabund ~ Genotype,
                         data = full.df,
                         family = "negative.binomial")
-plot(manyglm.full, which = 1:3) # residuals aren't quite normally distributed, but there doesn't seem to be any heteroscedasticity in the model fit. Note that replotting the residuals gives qualitatively the same picture (it's important to replot them because the residuals involve random number generation, see ?plot.manyglm)
+plot(manyglm.full, which = 1:3) # residuals look pretty good
 
-#Given that a negative binomial distribution seems to provide a good fit to the data, we tested whether the composition of gall-parasitoid interaction varied among willow genotypes. To further diagnose which interactions were driving this response, we conducted univariate analyses on each predictor, but adjusted for multiple comparisons. P-values were adjusted for multiple testing using a step-down resampling procedure. This methods provides strong control of family-wise error rates and makes use of resampling to ensure inferences take into account correlation between variables (Westfall & Young 1993).
-
-#From the table, it is clear to say that genotype has a strong effect on the composition of links in the network. Moreover, differences in community composition are driven primarily by 3 interactions: vLG_Platy, vLG_Tory, and vLG_Mesopol.
-
+# test
 anova.full <- anova.manyglm(manyglm.full, p.uni = "unadjusted") # Takes about 1 min and 30 sec to run.
 anova.full # vLG_Platy, vLG_Tory, and vLG_Mesopol are driving the community response. rG_Tory is marginally significant and vLG_Eulo is close to marginal as well. aSG_Tory is significant as well.
-
-## test with linear models
-#link.lins <- manylm(log(full.mvabund+1) ~ Genotype, data = full.df)
-#summary(link.lins)
-#anova(link.lins, p.uni = "unadjusted") # qualitatively same results as GLM
-
 
 ## composition analysis
 link.comm <- cbind.data.frame(Genotype = full.df$Genotype, full.df[ ,interaxns_noPont])
@@ -392,8 +342,7 @@ anova(betadisper(bray.link.comm.sub, group = link.comm.sub$Genotype)) # no diffe
 summary(meandist(bray.link.comm.sub, grouping = link.comm.sub$Genotype)) # average dissimilarity of 78%
 
 ## Gall-parasitoid and gall density/size analyses ----
-## Now we examine how variation in gall densities and gall size (for Iteomyia) affects the network.
-
+# Now we examine how variation in gall densities and gall size (for Iteomyia) affects the network.
 # First we created a dataset that contained complete observations of the network and predictor variables
 full.predictors <- full.df %>%
   select(aSG_Tory:rG_Platy, rG_Tory, SG_Platy, vLG_Eulo:vLG_Tory, # interactions
@@ -412,12 +361,11 @@ dim(full.predictors)[1] # 81 data points
 net.trait <- mvabund(full.predictors[ ,interaxns_noPont])
 
 
-#We then looked for evidence of variance inflation among the predictor variables. But found little evidence for it.
-#CURRENTLY NOT WORKING
+# variance inflation factor analysis
 vif(xx = as.data.frame(full.predictors[ ,c("log.1.aSG_abund","log.1.rG_abund","log.vLG_abund","vLG.height.mean")])) # Little evidence of variance inflation among predictor variables.
 
 
-#We log transformed all predictor variables because it provided a much better fit to the data as determined by AIC. We then used AIC to compare our most complex model to our least complex. Instead of exploring all possible combinations, we started with the most complex model and used AIC to drop predictor variables with the lowest AIC values (i.e. least impact on removal). Using AIC, we identified 3 equivalenet models (difference in AIC < 2.1 amongst models). 
+# we log transformed all predictor variables because it provided a much better fit to the data as determined by AIC. We then used AIC to compare our most complex model to our least complex. Instead of exploring all possible combinations, we started with the most complex model and used AIC to drop predictor variables with the lowest AIC values (i.e. least impact on removal). Using AIC, we identified 3 equivalenet models (difference in AIC < 2.1 amongst models). 
 net.mvabund.1.full <- manyglm(net.trait ~ log.vLG_abund*vLG.height.mean + 
                                 log.1.rG_abund + log.1.aSG_abund,
                               data = full.predictors,
@@ -454,50 +402,21 @@ arrange(AIC.models, AIC)
 
 anova.manyglm(net.mvabund.1.full, net.mvabund.2, net.mvabund.3, net.mvabund.4, net.mvabund.5, net.mvabund.6.null) # takes about 3 min to run.
 
-
 # After deciding on the model with all main effects and no interactions, we examined the residuals and everything looked pretty good.
 plot(net.mvabund.2, which = 1:3) # residuals look pretty good.
 
-
-# We then examined the which processes underlied variation in the gall-parasitoid interactions.
+# We then examined which processes underlied variation in the gall-parasitoid interactions.
 anova.net <- anova.manyglm(net.mvabund.2, p.uni = "unadjusted") # takes about 2.5 min to run.
 anova.net # not that since the P-values are determined by a resampling procedure, they may differ slightly between runs. Therefore, we retain all P-values < 0.10 (during at least one run) for the coefficient summary below.
 
 # coefficient summary - Table S2, abundance of gall-parasitoid interactions section
 t(coef(net.mvabund.2))[,-1][c(11,9,12,8,10,5,4,6,2,3,1,7),c(2,1,3,4)]
-#t(coef(net.mvabund.2))[,-1][c(5,4,6,2,3,1,7),c(2,1,3,4)]
 
 anova.net.null <- anova.manyglm(net.mvabund.2, net.mvabund.6.null) # takes about 30 sec to run
 anova.net.null
 
-sig.coef.df.2 <- mutate(melt(coef(net.mvabund.2)),
-                        predictor_response = paste(X1, X2, sep = "_")) %>%
-  # select(predictor = X1, response = X2, predictor_response, value) %>%
-  subset(predictor_response %in% c("log.1.aSG_abund_aSG_Tory", 
-                                   "log.1.rG_abund_rG_Eulo",
-                                   "log.1.rG_abund_rG_Platy",
-                                   "log.1.rG_abund_rG_Lestodip", # marginal
-                                   "log.vLG_abund_SG_Platy", # marginal
-                                   "log.vLG_abund_vLG_Mymarid",
-                                   "vLG.height.mean_vLG_Eulo", # marginal
-                                   "vLG.height.mean_rG_Tory", "log.1.rG_abund_rG_Tory",
-                                   "vLG_abund_vLG_Mesopol", "vLG.height.mean_vLG_Mesopol", 
-                                   "vLG.height.mean_vLG_Platy", "log.vLG_abund_vLG_Platy",
-                                   "vLG.height.mean_vLG_Tory", "log.vLG_abund_vLG_Tory")) %>% # vLG.height.mean is marginal for vLG_Tory
-  select(predictor = X1, response = X2, coefficient = value)
-arrange(sig.coef.df.2, predictor, response)
 1 - exp(-0.2157298) # 19% decrease in vLG_Platy interaction with every one unit increase in gall size.
 1 - exp(-0.2697011) # 24% decrease in vLG_Mesopolobous interaction with every one unit increase in gall size.
-
-
-# linear models
-#net.trait.lms <- manylm(net.trait ~ log.vLG_abund + vLG.height.mean + 
- #                         log.1.rG_abund + log.1.aSG_abund,
-  #                      data = full.predictors)
-#summary(net.trait.lms) # non significant effect of gall height. It was the least important variable though in the GLM as well with mostly marginally significant effects.
-
-
-# The results from the link composition analysis suggest that increases in gall abundance lead to increasing food web complexity for those individual nodes, whereas differences in leaf gall size lead to fundamental differences in link composition.
 
 ## Gall parasitism rates analysis ----
 # Does the proportion of galls parasitized vary among willow genotypes?
@@ -548,7 +467,7 @@ vLG_Tory.ptism <- glm(vLG_Tory/vLG_abund ~ vLG.height.mean + vLG_abund,
                       data = full.df, weights = vLG_abund, family = "binomial")
 summary(vLG_Tory.ptism)
 
-## summary of models. Used Anova function because they were multiple independent variables and we wanted to examine their marginal effects.
+## summary of models
 # Table S3 of supplementary material.
 car::Anova(vLG_total.ptism)
 car::Anova(vLG_Platy.ptism)
